@@ -19,16 +19,23 @@ portfolio is allocated — and what each fund actually holds.
 
 ## Features
 
-- Add an ETF (ISIN + optional name + EUR value) and multiple cash positions.
-- Doughnut chart of the allocation; table with value and share of total.
-- Positions persist in a **file-based SQLite database** via the backend API.
-- Each ETF row resolves its **fund metadata** (name, TER, currency, holdings
-  count) and expands to a read-only **top-holdings** list with the EUR exposure
-  implied by the position.
-- Fund data comes from the [FundFacts API](https://fundfactsapi.com) — ISIN-based,
-  covering every fund house — with a bundled fallback snapshot and 24 h caching.
+Three tabs: **Portfolio**, **Lookthrough**, **Config**.
 
-**Look-through tab** — aggregates across every ETF:
+**Portfolio** — a large doughnut chart of the allocation and nothing else.
+Hovering a slice shows that position's details (name, ISIN, TER, currency,
+holdings count) plus its EUR value and share of the total.
+
+**Config** — manage positions: add an ETF (ISIN + optional name + EUR value) or
+multiple cash positions, and remove them. The ISIN is validated structurally
+and then resolved against the API as you type, so an unknown ISIN is flagged
+before it is saved. Each ETF row shows its **fund metadata** (name, TER,
+currency, holdings count) and expands to a read-only **top-holdings** list with
+the EUR exposure implied by the position. Positions persist in a **file-based
+SQLite database** via the backend API. Fund data comes from the
+[FundFacts API](https://fundfactsapi.com) — ISIN-based, covering every fund
+house — with a bundled fallback snapshot and 24 h caching.
+
+**Lookthrough** — aggregates across every ETF:
 
 - **Stock exposure**: each ETF's holdings weighted by the ETF's share of the
   portfolio, merged per company (ISIN → ticker → normalised name), with

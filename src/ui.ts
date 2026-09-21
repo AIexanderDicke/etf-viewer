@@ -6,17 +6,13 @@ import * as funds from "./funds.ts";
 import { createLookThroughView } from "./lookthrough.ts";
 import * as store from "./store.ts";
 
-type TabId = "portfolio" | "lookthrough";
+type TabId = "portfolio" | "lookthrough" | "config";
 
 const TEMPLATE = `
   <header class="app-header">
     <div>
       <h1>ETF Viewer</h1>
-      <p class="subtitle">Enter your ETF positions by ISIN and see how your portfolio is allocated.</p>
-    </div>
-    <div class="total">
-      <span class="total-label">Total</span>
-      <span class="total-value" id="total">—</span>
+      <p class="subtitle">Track your ETF portfolio by ISIN.</p>
     </div>
   </header>
 
@@ -24,17 +20,25 @@ const TEMPLATE = `
 
   <nav class="tabs" id="tabs">
     <button type="button" class="tab is-active" data-tab="portfolio">Portfolio</button>
-    <button type="button" class="tab" data-tab="lookthrough">Look-through</button>
+    <button type="button" class="tab" data-tab="lookthrough">Lookthrough</button>
+    <button type="button" class="tab" data-tab="config">Config</button>
   </nav>
 
-  <section class="layout" id="view-portfolio">
-    <section class="card chart-card">
-      <h2>Allocation</h2>
-      <div class="chart-wrap"><canvas id="allocation-chart"></canvas></div>
-      <p class="empty-hint" id="chart-empty">Add a position to see the allocation.</p>
-    </section>
+  <section class="view" id="view-portfolio">
+    <div class="chart-wrap chart-wrap-large">
+      <canvas id="allocation-chart"></canvas>
+      <div class="chart-center" id="chart-center" hidden>
+        <span class="chart-center-label">Total</span>
+        <span class="chart-center-value" id="total">—</span>
+      </div>
+    </div>
+    <p class="empty-hint" id="chart-empty" hidden>Add a position in Config to see the allocation.</p>
+  </section>
 
-    <section class="card">
+  <section class="layout" id="view-lookthrough" hidden></section>
+
+  <section class="view" id="view-config" hidden>
+    <section class="card config-card">
       <h2>Positions</h2>
       <form id="position-form" class="position-form" novalidate>
         <div class="field">
@@ -47,6 +51,7 @@ const TEMPLATE = `
         <div class="field field-isin">
           <label for="isin">ISIN</label>
           <input id="isin" type="text" placeholder="IE00B4L5Y983" autocomplete="off" spellcheck="false" />
+          <p class="field-hint" id="isin-hint" role="status" hidden></p>
         </div>
         <div class="field field-name">
           <label for="name">Name <span class="optional">(optional)</span></label>
@@ -70,8 +75,6 @@ const TEMPLATE = `
       <p class="empty-hint" id="list-loading">Loading positions…</p>
     </section>
   </section>
-
-  <section class="layout" id="view-lookthrough" hidden></section>
 `;
 
 const expanded = new Set<string>();
@@ -83,15 +86,18 @@ export function mountApp(root: HTMLElement): void {
   const lookThroughView = createLookThroughView(get<HTMLElement>("view-lookthrough"));
   const viewPortfolio = get<HTMLElement>("view-portfolio");
   const viewLookThrough = get<HTMLElement>("view-lookthrough");
+  const viewConfig = get<HTMLElement>("view-config");
 
   const form = get<HTMLFormElement>("position-form");
   const kindInput = get<HTMLSelectElement>("kind");
   const isinInput = get<HTMLInputElement>("isin");
+  const isinHint = get<HTMLParagraphElement>("isin-hint");
   const nameInput = get<HTMLInputElement>("name");
   const amountInput = get<HTMLInputElement>("amount");
   const submitButton = get<HTMLButtonElement>("submit-button");
   const errorEl = get<HTMLParagraphElement>("form-error");
   const totalEl = get<HTMLSpanElement>("total");
+  const chartCenter = get<HTMLDivElement>("chart-center");
   const listBody = get<HTMLTableSectionElement>("position-list");
   const listEmpty = get<HTMLParagraphElement>("list-empty");
   const listLoading = get<HTMLParagraphElement>("list-loading");
@@ -113,10 +119,53 @@ export function mountApp(root: HTMLElement): void {
     }
     viewPortfolio.hidden = tab !== "portfolio";
     viewLookThrough.hidden = tab !== "lookthrough";
+    viewConfig.hidden = tab !== "config";
     render();
     if (tab === "lookthrough") lookThroughView.resize();
-    else chart.resize();
+    else if (tab === "portfolio") chart.resize();
   }
+
+  function setIsinHint(message: string, tone: "muted" | "ok" | "error" = "muted", info?: FundInfo): void {
+    if (!message) {
+      isinHint.hidden = true;
+      isinHint.replaceChildren();
+      return;
+    }
+    isinHint.hidden = false;
+    isinHint.className = "field-hint" + (tone === "muted" ? "" : ` field-hint-${tone}`);
+    const nodes: (Node | string)[] = [message];
+    if (info) nodes.push(renderChips(info));
+    isinHint.replaceChildren(...nodes);
+  }
+
+  let isinTimer: number | undefined;
+
+  async function checkIsin(isin: string): Promise<void> {
+    try {
+      const info = await funds.loadFund(isin);
+      if (isinInput.value.trim().toUpperCase() !== isin) return;
+      if (!nameInput.value.trim()) nameInput.placeholder = info.name;
+      setIsinHint(info.name, "ok", info);
+    } catch {
+      if (isinInput.value.trim().toUpperCase() !== isin) return;
+      setIsinHint(`No fund data found for ${isin}. Check the ISIN.`, "error");
+    }
+  }
+
+  isinInput.addEventListener("input", () => {
+    window.clearTimeout(isinTimer);
+    const isin = isinInput.value.trim().toUpperCase();
+    if (!isin) {
+      setIsinHint("");
+      return;
+    }
+    if (!isValidIsin(isin)) {
+      setIsinHint("Invalid ISIN format.", "error");
+      return;
+    }
+    setIsinHint("Checking ISIN…");
+    isinTimer = window.setTimeout(() => void checkIsin(isin), 400);
+  });
 
   kindInput.addEventListener("change", () => {
     const isCash = kindInput.value === "cash";
@@ -125,6 +174,7 @@ export function mountApp(root: HTMLElement): void {
     if (isCash) {
       isinInput.value = "";
       nameInput.value = "";
+      setIsinHint("");
     }
   });
 
@@ -149,16 +199,31 @@ export function mountApp(root: HTMLElement): void {
 
     submitButton.disabled = true;
     try {
+      let name = nameInput.value.trim();
+      if (kind === "etf") {
+        try {
+          const info = await funds.loadFund(isin);
+          if (!name) name = info.name;
+        } catch {
+          errorEl.textContent = `No fund data found for ${isin}. Check the ISIN.`;
+          setIsinHint(`No fund data found for ${isin}. Check the ISIN.`, "error");
+          isinInput.focus();
+          return;
+        }
+      }
+
       await store.addPosition({
         kind,
         isin: kind === "etf" ? isin : "",
-        name: nameInput.value.trim(),
+        name,
         amount,
       });
       form.reset();
       kindInput.value = "etf";
       isinField.hidden = false;
       nameField.hidden = false;
+      nameInput.placeholder = "MSCI World";
+      setIsinHint("");
       amountInput.focus();
     } catch (error) {
       errorEl.textContent = error instanceof Error ? error.message : "Could not save position.";
@@ -205,19 +270,22 @@ export function mountApp(root: HTMLElement): void {
     }
 
     const summary = summarize(state.positions);
+    const hasAllocations = summary.allocations.length > 0;
     totalEl.textContent = summary.total > 0 ? euro.format(summary.total) : "—";
+    chartCenter.hidden = !hasAllocations;
 
     listLoading.hidden = state.status !== "loading";
     listEmpty.hidden = state.status !== "ready" || state.positions.length > 0;
-    chartEmpty.hidden = summary.allocations.length > 0;
+    chartEmpty.hidden = hasAllocations;
     listBody.replaceChildren(...summary.allocations.flatMap(renderRow));
 
     for (const allocation of summary.allocations) {
       if (allocation.position.kind === "etf") funds.ensureFund(allocation.position.isin);
     }
 
-    chart.update(summary);
-    lookThroughView.render(state.positions, resolvedFunds(state.positions));
+    const fundsByIsin = resolvedFunds(state.positions);
+    chart.update(summary, fundsByIsin);
+    lookThroughView.render(state.positions, fundsByIsin);
   }
 
   function renderRow(allocation: Allocation): HTMLTableRowElement[] {

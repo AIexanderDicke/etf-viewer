@@ -15,6 +15,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -98,9 +102,47 @@ h2 {
   box-shadow: 0 20px 40px -30px rgba(0, 0, 0, 0.9);
 }
 
+.view {
+  display: block;
+}
+
 .chart-wrap {
   position: relative;
   height: 320px;
+}
+
+.chart-wrap-large {
+  height: min(74vh, 640px);
+}
+
+.chart-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  pointer-events: none;
+  text-align: center;
+}
+
+.chart-center-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.chart-center-value {
+  font-size: clamp(1.5rem, 4vw, 2.4rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.config-card {
+  max-width: 720px;
+  margin: 0 auto;
 }
 
 .position-form {
@@ -172,6 +214,28 @@ button.primary:hover {
   min-height: 1rem;
   color: var(--danger);
   font-size: 0.8rem;
+}
+
+.field-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.field-hint .chips {
+  margin-top: 0;
+}
+
+.field-hint-ok {
+  color: #86efac;
+}
+
+.field-hint-error {
+  color: #fca5a5;
 }
 
 .positions {
