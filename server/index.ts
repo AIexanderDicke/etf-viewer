@@ -1,11 +1,9 @@
-import express, { type NextFunction, type Request, type Response } from "express";
+import { createApp } from "./app.ts";
 import { config } from "./config.ts";
 import { createFundCacheRepo, createPositionRepo, getDb } from "./db.ts";
 import { createFundFactsProvider } from "./holdings/fundfacts.ts";
 import { FundService } from "./holdings/service.ts";
 import { createSnapshotProvider } from "./holdings/snapshot.ts";
-import { fundsRouter } from "./routes/funds.ts";
-import { positionsRouter } from "./routes/positions.ts";
 
 const db = getDb();
 
@@ -20,27 +18,31 @@ const fundService = new FundService({
   },
 });
 
-const app = express();
-app.use(express.json());
+const fundDataMode = config.fundFactsApiKey ? "api-key" : "demo";
 
-app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", fundDataMode: config.fundFactsApiKey ? "api-key" : "demo" });
+const app = createApp({
+  positionRepo: createPositionRepo(db),
+  fundService,
+  fundDataMode,
 });
 
-app.use("/api/positions", positionsRouter(createPositionRepo(db)));
-app.use("/api/funds", fundsRouter(fundService));
-
-app.use((_req, res) => {
-  res.status(404).json({ error: "not found" });
-});
-
-app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
-  console.error("[server] unhandled error:", error);
-  res.status(500).json({ error: "internal server error" });
-});
-
-app.listen(config.port, () => {
+const server = app.listen(config.port, () => {
   const mode = config.fundFactsApiKey ? "FundFacts API key" : "FundFacts keyless demo";
   console.log(`[server] listening on http://localhost:${config.port} (${mode})`);
   console.log(`[server] database: ${config.dbFile}`);
 });
+
+let shuttingDown = false;
+
+function shutdown(signal: NodeJS.Signals): void {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[server] received ${signal}, shutting down`);
+  server.close(() => {
+    db.close();
+    process.exit(0);
+  });
+}
+
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
