@@ -2,17 +2,77 @@ import path from "node:path";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export const config = {
-  port: Number(process.env.PORT ?? 3000),
+type Env = Record<string, string | undefined>;
+
+export interface Config {
+  readonly port: number;
   /** File-backed SQLite database. */
-  dbFile: process.env.DB_FILE ?? path.join(process.cwd(), "data", "etf-viewer.sqlite"),
+  readonly dbFile: string;
   /** FundFacts API (ISIN -> whole factsheet). Falls back to the keyless demo endpoint. */
-  fundFactsBaseUrl: process.env.FUNDFACTS_BASE_URL ?? "https://fundfactsapi.com/api/v1",
-  fundFactsApiKey: process.env.FUNDFACTS_API_KEY ?? "",
+  readonly fundFactsBaseUrl: string;
+  readonly fundFactsApiKey: string;
   /** Cached fund payloads are considered fresh for this long. */
-  fundCacheTtlMs: Number(process.env.FUND_CACHE_TTL_MS ?? DAY_MS),
+  readonly fundCacheTtlMs: number;
   /** Upstream request timeout. */
-  upstreamTimeoutMs: Number(process.env.UPSTREAM_TIMEOUT_MS ?? 30_000),
+  readonly upstreamTimeoutMs: number;
   /** Opt-in bundled fund snapshot. Testing/demo only; never on in production. */
-  enableSnapshotFallback: process.env.ENABLE_SNAPSHOT_FALLBACK === "1",
-};
+  readonly enableSnapshotFallback: boolean;
+}
+
+function readInteger(
+  env: Env,
+  name: string,
+  fallback: number,
+  { min, max }: { min: number; max: number },
+): number {
+  const raw = env[name];
+  if (raw === undefined || raw === "") return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < min || value > max) {
+    throw new Error(`Invalid ${name}="${raw}": expected an integer between ${min} and ${max}`);
+  }
+  return value;
+}
+
+function readPositiveNumber(env: Env, name: string, fallback: number): number {
+  const raw = env[name];
+  if (raw === undefined || raw === "") return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`Invalid ${name}="${raw}": expected a positive number`);
+  }
+  return value;
+}
+
+function readBoolean(env: Env, name: string, fallback: boolean): boolean {
+  const raw = env[name];
+  if (raw === undefined || raw === "") return fallback;
+  if (raw === "1" || raw.toLowerCase() === "true") return true;
+  if (raw === "0" || raw.toLowerCase() === "false") return false;
+  throw new Error(`Invalid ${name}="${raw}": expected a boolean (1/0, true/false)`);
+}
+
+function readUrl(env: Env, name: string, fallback: string): string {
+  const raw = env[name] ?? fallback;
+  try {
+    new URL(raw);
+  } catch {
+    throw new Error(`Invalid ${name}="${raw}": expected an absolute URL`);
+  }
+  return raw;
+}
+
+/** Parses and validates the backend configuration, failing fast on bad input. */
+export function loadConfig(env: Env = process.env): Config {
+  return {
+    port: readInteger(env, "PORT", 3000, { min: 0, max: 65_535 }),
+    dbFile: env.DB_FILE ?? path.join(process.cwd(), "data", "etf-viewer.sqlite"),
+    fundFactsBaseUrl: readUrl(env, "FUNDFACTS_BASE_URL", "https://fundfactsapi.com/api/v1"),
+    fundFactsApiKey: env.FUNDFACTS_API_KEY ?? "",
+    fundCacheTtlMs: readPositiveNumber(env, "FUND_CACHE_TTL_MS", DAY_MS),
+    upstreamTimeoutMs: readPositiveNumber(env, "UPSTREAM_TIMEOUT_MS", 30_000),
+    enableSnapshotFallback: readBoolean(env, "ENABLE_SNAPSHOT_FALLBACK", false),
+  };
+}
+
+export const config: Config = loadConfig();
