@@ -15,7 +15,7 @@ declare module "chart.js" {
  * Anchors the tooltip just beyond the hovered slice's outer edge, so it never
  * lands on the doughnut's centre (where the allocation total is drawn).
  */
-Tooltip.positioners.outside = function (items, eventPosition) {
+Tooltip.positioners.outside = (items, eventPosition) => {
   const arc = items[0]?.element as ArcElement | undefined;
   if (!arc) {
     return { x: eventPosition.x, y: eventPosition.y, xAlign: "center", yAlign: "center" };

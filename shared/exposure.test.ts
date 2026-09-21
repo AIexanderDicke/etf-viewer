@@ -15,7 +15,11 @@ function position(partial: Partial<Position> & Pick<Position, "kind" | "amount">
   };
 }
 
-function fund(isin: string, top: Array<[string, number]>, sector: Array<[string, number]> = []): FundInfo {
+function fund(
+  isin: string,
+  top: Array<[string, number]>,
+  sector: Array<[string, number]> = [],
+): FundInfo {
   return {
     isin,
     name: isin,
@@ -52,7 +56,17 @@ const funds = new Map<string, FundInfo>([
       ],
     ),
   ],
-  ["IE00B5BMR087", fund("IE00B5BMR087", [["NVIDIA", 7.1], ["APPLE INC", 5.9]], [["Information Technology", 25]])],
+  [
+    "IE00B5BMR087",
+    fund(
+      "IE00B5BMR087",
+      [
+        ["NVIDIA", 7.1],
+        ["APPLE INC", 5.9],
+      ],
+      [["Information Technology", 25]],
+    ),
+  ],
 ]);
 
 describe("stockKey / normalizeName", () => {
@@ -93,10 +107,7 @@ describe("computeLookThrough", () => {
   it("reconciles to the portfolio total", () => {
     const stockSum = result.stocks.reduce((sum, s) => sum + s.amount, 0);
     const total =
-      stockSum +
-      result.cash.amount +
-      result.unclassified.amount +
-      result.unresolved.amount;
+      stockSum + result.cash.amount + result.unclassified.amount + result.unresolved.amount;
     expect(total).toBeCloseTo(result.total, 5);
     expect(result.total).toBe(12000);
   });
@@ -126,7 +137,10 @@ describe("computeLookThrough", () => {
 
   it("ignores unusable positions", () => {
     const dirty = computeLookThrough(
-      [position({ kind: "etf", isin: "BAD", amount: 5000 }), position({ kind: "cash", amount: 100 })],
+      [
+        position({ kind: "etf", isin: "BAD", amount: 5000 }),
+        position({ kind: "cash", amount: 100 }),
+      ],
       funds,
     );
     expect(dirty.total).toBe(100);

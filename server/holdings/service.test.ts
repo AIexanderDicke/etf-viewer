@@ -27,7 +27,12 @@ describe("FundService", () => {
     cache.set(ISIN, fund("cached"), 1000);
     let calls = 0;
     const service = new FundService({
-      providers: [provider("p1", async () => (calls++, fund("p1")))],
+      providers: [
+        provider("p1", async () => {
+          calls += 1;
+          return fund("p1");
+        }),
+      ],
       cache,
       ttlMs: 1000,
     });

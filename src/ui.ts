@@ -163,14 +163,18 @@ export function mountApp(root: HTMLElement): void {
     else if (tab === "portfolio") chart.resize();
   }
 
-  function setIsinHint(message: string, tone: "muted" | "ok" | "error" = "muted", info?: FundInfo): void {
+  function setIsinHint(
+    message: string,
+    tone: "muted" | "ok" | "error" = "muted",
+    info?: FundInfo,
+  ): void {
     if (!message) {
       isinHint.hidden = true;
       isinHint.replaceChildren();
       return;
     }
     isinHint.hidden = false;
-    isinHint.className = "field-hint" + (tone === "muted" ? "" : ` field-hint-${tone}`);
+    isinHint.className = `field-hint${tone === "muted" ? "" : ` field-hint-${tone}`}`;
     const nodes: (Node | string)[] = [message];
     if (info) nodes.push(renderChips(info));
     isinHint.replaceChildren(...nodes);
@@ -406,7 +410,8 @@ export function mountApp(root: HTMLElement): void {
       assetCell.append(el("div", "asset-sub", position.isin));
     }
     if (info) assetCell.append(renderChips(info));
-    if (fundState?.status === "loading") assetCell.append(el("div", "asset-meta", "Resolving fund…"));
+    if (fundState?.status === "loading")
+      assetCell.append(el("div", "asset-meta", "Resolving fund…"));
     if (fundState?.status === "error") {
       assetCell.append(
         el("div", "asset-meta asset-meta-error", fundState.error ?? "Fund data unavailable"),
@@ -418,7 +423,11 @@ export function mountApp(root: HTMLElement): void {
 
     const actions = el("td", "actions");
     if (!isCash) {
-      const toggle = el("button", "toggle", expanded.has(position.id) ? "▾" : "▸") as HTMLButtonElement;
+      const toggle = el(
+        "button",
+        "toggle",
+        expanded.has(position.id) ? "▾" : "▸",
+      ) as HTMLButtonElement;
       toggle.type = "button";
       toggle.dataset.action = "toggle";
       toggle.dataset.id = position.id;

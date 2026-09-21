@@ -82,29 +82,29 @@ Always run `npm run typecheck` and `npm test` before considering work done;
 Backend reads env vars (see `server/config.ts`); no `.env` loader is wired up,
 export them in the shell.
 
-| Env var | Default |
-| --- | --- |
-| `PORT` | `3000` |
-| `DB_FILE` | `data/etf-viewer.sqlite` |
-| `FUNDFACTS_API_KEY` | *(empty → keyless demo endpoint)* |
-| `FUNDFACTS_BASE_URL` | `https://fundfactsapi.com/api/v1` |
-| `FUND_CACHE_TTL_MS` | `86400000` (24 h) |
-| `UPSTREAM_TIMEOUT_MS` | `30000` |
-| `ENABLE_SNAPSHOT_FALLBACK` | *(unset → off; testing/demo only)* |
-| `API_URL` | `http://localhost:3000` (Vite proxy target) |
+| Env var                    | Default                                     |
+| -------------------------- | ------------------------------------------- |
+| `PORT`                     | `3000`                                      |
+| `DB_FILE`                  | `data/etf-viewer.sqlite`                    |
+| `FUNDFACTS_API_KEY`        | _(empty → keyless demo endpoint)_           |
+| `FUNDFACTS_BASE_URL`       | `https://fundfactsapi.com/api/v1`           |
+| `FUND_CACHE_TTL_MS`        | `86400000` (24 h)                           |
+| `UPSTREAM_TIMEOUT_MS`      | `30000`                                     |
+| `ENABLE_SNAPSHOT_FALLBACK` | _(unset → off; testing/demo only)_          |
+| `API_URL`                  | `http://localhost:3000` (Vite proxy target) |
 
 The SQLite file lives in `data/` and is gitignored.
 
 ## HTTP API
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/api/health` | liveness + fund-data mode |
-| GET | `/api/positions` | list positions |
-| POST | `/api/positions` | create position |
-| PATCH | `/api/positions/:id` | update position |
-| DELETE | `/api/positions/:id` | delete position |
-| GET | `/api/funds/:isin` | fund metadata + top holdings |
+| Method | Path                 | Purpose                      |
+| ------ | -------------------- | ---------------------------- |
+| GET    | `/api/health`        | liveness + fund-data mode    |
+| GET    | `/api/positions`     | list positions               |
+| POST   | `/api/positions`     | create position              |
+| PATCH  | `/api/positions/:id` | update position              |
+| DELETE | `/api/positions/:id` | delete position              |
+| GET    | `/api/funds/:isin`   | fund metadata + top holdings |
 
 A `Position` carries `kind`, `isin` (ETFs), `name`, `bank` and `interestRate`
 (cash only) and `amount`. Validation lives in `server/routes/positions.ts`:

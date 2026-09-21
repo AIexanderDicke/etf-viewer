@@ -27,7 +27,6 @@ export const api = {
     request<Position>("/api/positions", { method: "POST", body: JSON.stringify(input) }),
   updatePosition: (id: string, patch: Partial<PositionInput>) =>
     request<Position>(`/api/positions/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
-  removePosition: (id: string) =>
-    request<void>(`/api/positions/${id}`, { method: "DELETE" }),
+  removePosition: (id: string) => request<void>(`/api/positions/${id}`, { method: "DELETE" }),
   getFund: (isin: string) => request<FundInfo>(`/api/funds/${encodeURIComponent(isin)}`),
 };

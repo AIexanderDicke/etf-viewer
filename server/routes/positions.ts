@@ -71,9 +71,9 @@ export function positionsRouter(repo: PositionRepo): Router {
       return;
     }
 
-    const body = (typeof req.body === "object" && req.body !== null
-      ? req.body
-      : {}) as Partial<PositionInput>;
+    const body = (
+      typeof req.body === "object" && req.body !== null ? req.body : {}
+    ) as Partial<PositionInput>;
     const merged: Partial<PositionInput> = {
       kind: (body.kind ?? existing.kind) as AssetKind,
       isin: body.isin ?? existing.isin,

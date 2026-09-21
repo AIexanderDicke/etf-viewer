@@ -98,7 +98,7 @@ export function createLookThroughView(container: HTMLElement) {
       ...available.map((kind) => {
         const button = document.createElement("button");
         button.type = "button";
-        button.className = "topic-tab" + (kind === activeTopic ? " is-active" : "");
+        button.className = `topic-tab${kind === activeTopic ? " is-active" : ""}`;
         button.dataset.topic = kind;
         button.textContent = TOPIC_LABELS[kind];
         return button;
@@ -215,8 +215,11 @@ export type LookThroughView = ReturnType<typeof createLookThroughView>;
 
 function coverageText(lookThrough: LookThrough): string {
   const bits: string[] = [];
-  bits.push(`Top holdings explain ${percent.format(lookThrough.coverage * 100)}% of the invested ETF value`);
-  if (lookThrough.cash.share > 0) bits.push(`${percent.format(lookThrough.cash.share * 100)}% is cash`);
+  bits.push(
+    `Top holdings explain ${percent.format(lookThrough.coverage * 100)}% of the invested ETF value`,
+  );
+  if (lookThrough.cash.share > 0)
+    bits.push(`${percent.format(lookThrough.cash.share * 100)}% is cash`);
   if (lookThrough.unresolved.share > 0) {
     bits.push(`${percent.format(lookThrough.unresolved.share * 100)}% still resolving`);
   }

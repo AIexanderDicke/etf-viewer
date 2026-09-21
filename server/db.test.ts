@@ -87,8 +87,9 @@ describe("migrations", () => {
 
     const db = createDb(file);
     try {
-      const columns = (db.prepare("PRAGMA table_info(positions)").all() as Array<{ name: string }>)
-        .map((column) => column.name);
+      const columns = (
+        db.prepare("PRAGMA table_info(positions)").all() as Array<{ name: string }>
+      ).map((column) => column.name);
       expect(columns).toContain("bank");
       expect(columns).toContain("interest_rate");
     } finally {

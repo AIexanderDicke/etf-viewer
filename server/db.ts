@@ -52,7 +52,8 @@ function addColumn(db: Db, table: string, column: string, definition: string): v
 let defaultDb: Db | undefined;
 
 export function getDb(): Db {
-  return (defaultDb ??= createDb(config.dbFile));
+  if (!defaultDb) defaultDb = createDb(config.dbFile);
+  return defaultDb;
 }
 
 interface PositionRow {
@@ -100,8 +101,7 @@ export function createPositionRepo(db: Db): PositionRepo {
 
     get(id) {
       const row = db.prepare("SELECT * FROM positions WHERE id = ?").get(id) as
-        | PositionRow
-        | undefined;
+        PositionRow | undefined;
       return row ? toPosition(row) : null;
     },
 
@@ -173,8 +173,7 @@ export function createFundCacheRepo(db: Db, now: () => number = Date.now): FundC
   return {
     get(isin) {
       const row = db.prepare("SELECT * FROM fund_cache WHERE isin = ?").get(isin) as
-        | FundCacheRow
-        | undefined;
+        FundCacheRow | undefined;
       if (!row) return null;
       return {
         info: JSON.parse(row.payload) as FundInfo,
