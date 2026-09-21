@@ -21,6 +21,17 @@ const payload = {
       { name: "", weight: 1.1 },
       { name: "IGNORED", weight: "nope" },
     ],
+    sector: [
+      { label: "Information Technology", weight: 30.33 },
+      { label: "Financials", weight: 16.1 },
+      { label: "", weight: 5 },
+    ],
+    geography: [{ label: "United States", weight: 72.29 }],
+    region: [],
+    assetAllocation: [
+      { label: "Equity", weight: 99.69 },
+      { label: "Cash Collateral and Margins", weight: 0.02 },
+    ],
   },
 };
 
@@ -43,6 +54,17 @@ describe("normalizeFundFacts", () => {
 
     expect(info.topHoldings.map((h) => h.name)).toEqual(["NVIDIA", "APPLE", "Unknown"]);
     expect(info.coverage).toBeCloseTo((5.54 + 5.24 + 1.1) / 100, 5);
+  });
+
+  it("parses breakdowns, drops blank labels", () => {
+    const info = normalizeFundFacts("IE00B4L5Y983", payload);
+
+    expect(info.breakdowns?.sector.map((s) => s.label)).toEqual([
+      "Information Technology",
+      "Financials",
+    ]);
+    expect(info.breakdowns?.geography[0]).toEqual({ label: "United States", weight: 72.29 });
+    expect(info.breakdowns?.region).toEqual([]);
   });
 
   it("survives an empty payload", () => {

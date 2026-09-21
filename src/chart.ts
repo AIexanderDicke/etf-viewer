@@ -1,10 +1,10 @@
 import { ArcElement, Chart, DoughnutController, Legend, Tooltip } from "chart.js";
-import { euro, percent } from "./format.ts";
 import type { PortfolioSummary } from "../shared/types.ts";
+import { euro, percent } from "./format.ts";
 
 Chart.register(ArcElement, DoughnutController, Legend, Tooltip);
 
-const PALETTE = [
+export const PALETTE = [
   "#4f7cff",
   "#38bdf8",
   "#22c55e",
@@ -15,15 +15,21 @@ const PALETTE = [
   "#f97316",
   "#64748b",
   "#ec4899",
+  "#0ea5e9",
+  "#84cc16",
 ];
 
 const CASH_COLOR = "#94a3b8";
 
-function colorFor(index: number, isCash: boolean): string {
-  return isCash ? CASH_COLOR : PALETTE[index % PALETTE.length];
+export function paletteColors(count: number): string[] {
+  return Array.from({ length: count }, (_, index) => PALETTE[index % PALETTE.length]);
 }
 
-export function createAllocationChart(canvas: HTMLCanvasElement) {
+/**
+ * A reusable doughnut chart whose slices are always shown as EUR value plus
+ * their share of the total.
+ */
+export function createDoughnut(canvas: HTMLCanvasElement, cutout = "55%") {
   const chart = new Chart(canvas, {
     type: "doughnut",
     data: {
@@ -41,7 +47,7 @@ export function createAllocationChart(canvas: HTMLCanvasElement) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      cutout: "55%",
+      cutout,
       plugins: {
         legend: {
           position: "bottom",
@@ -62,6 +68,27 @@ export function createAllocationChart(canvas: HTMLCanvasElement) {
   });
 
   return {
+    update(labels: string[], data: number[], colors?: string[]) {
+      chart.data.labels = labels;
+      chart.data.datasets[0].data = data;
+      chart.data.datasets[0].backgroundColor = colors ?? paletteColors(data.length);
+      chart.update();
+    },
+    resize() {
+      chart.resize();
+    },
+    destroy() {
+      chart.destroy();
+    },
+  };
+}
+
+export type Doughnut = ReturnType<typeof createDoughnut>;
+
+export function createAllocationChart(canvas: HTMLCanvasElement) {
+  const base = createDoughnut(canvas);
+
+  return {
     update(summary: PortfolioSummary) {
       const labels = summary.allocations.map((allocation) =>
         allocation.position.kind === "cash"
@@ -70,14 +97,11 @@ export function createAllocationChart(canvas: HTMLCanvasElement) {
       );
       const data = summary.allocations.map((allocation) => allocation.amount);
       const colors = summary.allocations.map((allocation, index) =>
-        colorFor(index, allocation.position.kind === "cash"),
+        allocation.position.kind === "cash" ? CASH_COLOR : PALETTE[index % PALETTE.length],
       );
-
-      chart.data.labels = labels;
-      chart.data.datasets[0].data = data;
-      chart.data.datasets[0].backgroundColor = colors;
-      chart.update();
+      base.update(labels, data, colors);
     },
+    resize: () => base.resize(),
   };
 }
 

@@ -8,11 +8,12 @@ portfolio is allocated — and what each fund actually holds.
 | Iteration | Scope | State |
 | --- | --- | --- |
 | 1 | ETF + cash allocation (pie chart) | done |
-| 2 | Fund metadata, top holdings, backend + SQLite persistence | **done** |
-| 3 | Stock-level look-through across ETFs | planned |
+| 2 | Fund metadata, top holdings, backend + SQLite persistence | done |
+| 3 | Stock + topic look-through across ETFs | **done** |
 
 - Iteration 1 details: [docs/iteration-01.md](./docs/iteration-01.md)
 - Iteration 2 details: [docs/iteration-02.md](./docs/iteration-02.md)
+- Iteration 3 details: [docs/iteration-03.md](./docs/iteration-03.md)
 - Full plan: [docs/roadmap.md](./docs/roadmap.md)
 - Holdings-data research: [docs/data-sources.md](./docs/data-sources.md)
 
@@ -26,6 +27,17 @@ portfolio is allocated — and what each fund actually holds.
   implied by the position.
 - Fund data comes from the [FundFacts API](https://fundfactsapi.com) — ISIN-based,
   covering every fund house — with a bundled fallback snapshot and 24 h caching.
+
+**Look-through tab** — aggregates across every ETF:
+
+- **Stock exposure**: each ETF's holdings weighted by the ETF's share of the
+  portfolio, merged per company (ISIN → ticker → normalised name), with
+  explicit `Cash`, `Other holdings` and `Not resolved yet` lines that reconcile
+  to the total.
+- **Topic exposure**: sector, country, region and asset class, aggregated and
+  switchable, with an `Other / not disclosed` remainder.
+- Coverage is always shown: the factsheet exposes top ~10 holdings (~27% of a
+  broad index fund), while the topic breakdowns are near-complete.
 
 ## Architecture
 
@@ -96,14 +108,19 @@ on the backend. Vanilla DOM, no UI framework.
 ## Project layout
 
 ```
-shared/            types + ISIN validation used by both sides
+shared/            used by both sides
+  types.ts         domain types (positions, funds, breakdowns, look-through)
+  isin.ts          ISIN validation
+  portfolio.ts     isUsable / summarize (allocation math)
+  exposure.ts      pure look-through aggregation
 src/               frontend
   api.ts           fetch client for /api
   store.ts         positions state (server-backed)
   funds.ts         lazy fund-data lookup per ISIN
-  ui.ts            DOM, form, table, holdings view
-  calc.ts          allocation math (pure)
-  chart.ts         Chart.js doughnut
+  ui.ts            tab shell, form, position table, fund rows
+  lookthrough.ts   look-through view (stocks + topic charts)
+  calc.ts          re-exports shared portfolio helpers
+  chart.ts         Chart.js doughnut factory
 server/            backend
   index.ts         Express app
   config.ts        env configuration
@@ -111,5 +128,5 @@ server/            backend
   routes/          positions + funds endpoints
   holdings/        HoldingsProvider interface, FundFacts, snapshot, FundService
 docs/
-  iteration-01.md  iteration-02.md  roadmap.md  data-sources.md
+  iteration-01.md  iteration-02.md  iteration-03.md  roadmap.md  data-sources.md
 ```

@@ -3,7 +3,10 @@ import { isValidIsin, summarize } from "./calc.ts";
 import { createAllocationChart } from "./chart.ts";
 import { euro, integer, percent } from "./format.ts";
 import * as funds from "./funds.ts";
+import { createLookThroughView } from "./lookthrough.ts";
 import * as store from "./store.ts";
+
+type TabId = "portfolio" | "lookthrough";
 
 const TEMPLATE = `
   <header class="app-header">
@@ -19,7 +22,12 @@ const TEMPLATE = `
 
   <p class="status" id="app-status" role="alert" hidden></p>
 
-  <main class="layout">
+  <nav class="tabs" id="tabs">
+    <button type="button" class="tab is-active" data-tab="portfolio">Portfolio</button>
+    <button type="button" class="tab" data-tab="lookthrough">Look-through</button>
+  </nav>
+
+  <section class="layout" id="view-portfolio">
     <section class="card chart-card">
       <h2>Allocation</h2>
       <div class="chart-wrap"><canvas id="allocation-chart"></canvas></div>
@@ -61,7 +69,9 @@ const TEMPLATE = `
       <p class="empty-hint" id="list-empty" hidden>No positions yet.</p>
       <p class="empty-hint" id="list-loading">Loading positions…</p>
     </section>
-  </main>
+  </section>
+
+  <section class="layout" id="view-lookthrough" hidden></section>
 `;
 
 const expanded = new Set<string>();
@@ -70,6 +80,10 @@ export function mountApp(root: HTMLElement): void {
   root.innerHTML = TEMPLATE;
 
   const chart = createAllocationChart(get<HTMLCanvasElement>("allocation-chart"));
+  const lookThroughView = createLookThroughView(get<HTMLElement>("view-lookthrough"));
+  const viewPortfolio = get<HTMLElement>("view-portfolio");
+  const viewLookThrough = get<HTMLElement>("view-lookthrough");
+
   const form = get<HTMLFormElement>("position-form");
   const kindInput = get<HTMLSelectElement>("kind");
   const isinInput = get<HTMLInputElement>("isin");
@@ -83,9 +97,26 @@ export function mountApp(root: HTMLElement): void {
   const listLoading = get<HTMLParagraphElement>("list-loading");
   const chartEmpty = get<HTMLParagraphElement>("chart-empty");
   const statusEl = get<HTMLParagraphElement>("app-status");
+  const tabsEl = get<HTMLElement>("tabs");
 
   const isinField = document.querySelector<HTMLDivElement>(".field-isin")!;
   const nameField = document.querySelector<HTMLDivElement>(".field-name")!;
+
+  tabsEl.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("button[data-tab]");
+    if (button) setTab(button.dataset.tab as TabId);
+  });
+
+  function setTab(tab: TabId): void {
+    for (const button of tabsEl.querySelectorAll<HTMLButtonElement>("button[data-tab]")) {
+      button.classList.toggle("is-active", button.dataset.tab === tab);
+    }
+    viewPortfolio.hidden = tab !== "portfolio";
+    viewLookThrough.hidden = tab !== "lookthrough";
+    render();
+    if (tab === "lookthrough") lookThroughView.resize();
+    else chart.resize();
+  }
 
   kindInput.addEventListener("change", () => {
     const isCash = kindInput.value === "cash";
@@ -152,6 +183,16 @@ export function mountApp(root: HTMLElement): void {
     }
   });
 
+  function resolvedFunds(positions = store.getState().positions): Map<string, FundInfo> {
+    const map = new Map<string, FundInfo>();
+    for (const position of positions) {
+      if (position.kind !== "etf") continue;
+      const info = funds.getFundState(position.isin).info;
+      if (info) map.set(position.isin.toUpperCase(), info);
+    }
+    return map;
+  }
+
   function render(): void {
     const state = store.getState();
 
@@ -171,12 +212,12 @@ export function mountApp(root: HTMLElement): void {
     chartEmpty.hidden = summary.allocations.length > 0;
     listBody.replaceChildren(...summary.allocations.flatMap(renderRow));
 
-    // Kick off fund lookups for any ETF that has not been resolved yet.
     for (const allocation of summary.allocations) {
       if (allocation.position.kind === "etf") funds.ensureFund(allocation.position.isin);
     }
 
     chart.update(summary);
+    lookThroughView.render(state.positions, resolvedFunds(state.positions));
   }
 
   function renderRow(allocation: Allocation): HTMLTableRowElement[] {
@@ -196,7 +237,9 @@ export function mountApp(root: HTMLElement): void {
     if (info) assetCell.append(renderChips(info));
     if (fundState?.status === "loading") assetCell.append(el("div", "asset-meta", "Resolving fund…"));
     if (fundState?.status === "error") {
-      assetCell.append(el("div", "asset-meta asset-meta-error", fundState.error ?? "Fund data unavailable"));
+      assetCell.append(
+        el("div", "asset-meta asset-meta-error", fundState.error ?? "Fund data unavailable"),
+      );
     }
 
     const valueCell = el("td", "num", euro.format(amount));

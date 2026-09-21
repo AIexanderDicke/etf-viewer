@@ -1,4 +1,4 @@
-import type { FundInfo, Holding } from "../../shared/types.ts";
+import type { BreakdownEntry, Breakdowns, FundInfo, Holding } from "../../shared/types.ts";
 import { config } from "../config.ts";
 import type { HoldingsProvider } from "./types.ts";
 
@@ -19,6 +19,10 @@ interface FundFactsPayload {
     benchmarkName?: string;
     dataAsOf?: string;
     topHoldings?: Array<{ name?: string; isin?: string; ticker?: string; weight?: number }>;
+    sector?: unknown;
+    geography?: unknown;
+    region?: unknown;
+    assetAllocation?: unknown;
   };
 }
 
@@ -50,6 +54,29 @@ function toHoldings(rows: unknown): Holding[] {
     .sort((a, b) => b.weight - a.weight);
 }
 
+interface LabelWeight {
+  label?: string;
+  weight?: number;
+}
+
+function isLabelWeight(value: unknown): value is LabelWeight {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as LabelWeight).label === "string" &&
+    typeof (value as LabelWeight).weight === "number"
+  );
+}
+
+function toBreakdown(rows: unknown): BreakdownEntry[] {
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .filter(isLabelWeight)
+    .map((row) => ({ label: row.label!.trim(), weight: Number(row.weight) || 0 }))
+    .filter((entry) => entry.label.length > 0)
+    .sort((a, b) => b.weight - a.weight);
+}
+
 /** Exported for tests: maps the FundFacts envelope onto our FundInfo shape. */
 export function normalizeFundFacts(isin: string, json: unknown): FundInfo {
   const payload = (json ?? {}) as FundFactsPayload;
@@ -57,6 +84,12 @@ export function normalizeFundFacts(isin: string, json: unknown): FundInfo {
   const keyFacts = data.keyFacts ?? {};
   const topHoldings = toHoldings(data.topHoldings);
   const coverage = topHoldings.reduce((sum, holding) => sum + holding.weight, 0) / 100;
+  const breakdowns: Breakdowns = {
+    sector: toBreakdown(data.sector),
+    geography: toBreakdown(data.geography),
+    region: toBreakdown(data.region),
+    assetAllocation: toBreakdown(data.assetAllocation),
+  };
 
   return {
     isin: (payload.isin ?? isin).toUpperCase(),
@@ -73,6 +106,7 @@ export function normalizeFundFacts(isin: string, json: unknown): FundInfo {
     dataAsOf: data.dataAsOf || undefined,
     topHoldings,
     coverage,
+    breakdowns,
   };
 }
 
@@ -90,7 +124,9 @@ export function createFundFactsProvider(fetchImpl: typeof fetch = fetch): Holdin
         signal: AbortSignal.timeout(config.upstreamTimeoutMs),
       });
 
-      if (response.status === 404) return null;
+      // FundFacts answers 404 (not a fund) or 400 (invalid ISIN) for unknown
+      // identifiers; both mean "no data" to us.
+      if (response.status === 404 || response.status === 400) return null;
       if (!response.ok) {
         throw new Error(`FundFacts responded ${response.status} for ${isin}`);
       }

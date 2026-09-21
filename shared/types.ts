@@ -41,6 +41,22 @@ export interface Holding {
   weight: number;
 }
 
+export interface BreakdownEntry {
+  label: string;
+  /** Weight inside the fund, in percent (0..100). */
+  weight: number;
+}
+
+/** Fund-level look-through categories. Arrays may be empty or partial. */
+export interface Breakdowns {
+  sector: BreakdownEntry[];
+  geography: BreakdownEntry[];
+  region: BreakdownEntry[];
+  assetAllocation: BreakdownEntry[];
+}
+
+export type BreakdownKind = keyof Breakdowns;
+
 export interface FundInfo {
   isin: string;
   name: string;
@@ -61,5 +77,46 @@ export interface FundInfo {
   dataAsOf?: string;
   topHoldings: Holding[];
   /** Share of the fund explained by topHoldings, 0..1. */
+  coverage: number;
+  /** Sector / country / region / asset-class exposure, when published. */
+  breakdowns?: Breakdowns;
+}
+
+/** One aggregated line in the look-through view. */
+export interface ExposureRow {
+  key: string;
+  label: string;
+  isin?: string;
+  ticker?: string;
+  /** EUR value. */
+  amount: number;
+  /** Fraction of the whole portfolio, 0..1. */
+  share: number;
+  /** How many funds this position appears in. */
+  fundCount: number;
+}
+
+export interface TopicRow {
+  label: string;
+  amount: number;
+  share: number;
+}
+
+export interface TopicExposure {
+  rows: TopicRow[];
+  /** Total ETF value the breakdown was computed from. */
+  basis: number;
+}
+
+export interface LookThrough {
+  total: number;
+  stocks: ExposureRow[];
+  cash: { amount: number; share: number };
+  /** ETF value covered by neither top holdings nor a resolved fund. */
+  unresolved: { amount: number; share: number; isins: string[] };
+  /** ETF value inside resolved funds but outside their published top holdings. */
+  unclassified: { amount: number; share: number };
+  topics: Record<BreakdownKind, TopicExposure>;
+  /** Fraction of the resolved ETF value explained by top holdings, 0..1. */
   coverage: number;
 }
