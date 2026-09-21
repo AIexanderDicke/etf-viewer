@@ -35,6 +35,18 @@ function migrate(db: Db): void {
       expires_at TEXT NOT NULL
     );
   `);
+
+  // Cash positions gained a bank and an interest rate; positions are stored
+  // with CREATE TABLE IF NOT EXISTS, so existing databases need the columns
+  // added explicitly.
+  addColumn(db, "positions", "bank", "TEXT NOT NULL DEFAULT ''");
+  addColumn(db, "positions", "interest_rate", "REAL");
+}
+
+function addColumn(db: Db, table: string, column: string, definition: string): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (columns.some((entry) => entry.name === column)) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }
 
 let defaultDb: Db | undefined;
@@ -48,6 +60,8 @@ interface PositionRow {
   kind: AssetKind;
   isin: string;
   name: string;
+  bank: string;
+  interest_rate: number | null;
   amount: number;
   created_at: string;
   updated_at: string;
@@ -59,6 +73,8 @@ function toPosition(row: PositionRow): Position {
     kind: row.kind,
     isin: row.isin,
     name: row.name,
+    bank: row.bank ?? "",
+    interestRate: row.interest_rate ?? undefined,
     amount: row.amount,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -68,8 +84,8 @@ function toPosition(row: PositionRow): Position {
 export interface PositionRepo {
   list(): Position[];
   get(id: string): Position | null;
-  create(input: Required<PositionInput>): Position;
-  update(id: string, patch: Partial<Required<PositionInput>>): Position | null;
+  create(input: PositionInput): Position;
+  update(id: string, patch: Partial<PositionInput>): Position | null;
   remove(id: string): boolean;
 }
 
@@ -96,14 +112,16 @@ export function createPositionRepo(db: Db): PositionRepo {
         kind: input.kind,
         isin: input.isin ?? "",
         name: input.name ?? "",
+        bank: input.bank ?? "",
+        interestRate: input.interestRate,
         amount: input.amount,
         createdAt: now,
         updatedAt: now,
       };
       db.prepare(
-        `INSERT INTO positions (id, kind, isin, name, amount, created_at, updated_at)
-         VALUES (@id, @kind, @isin, @name, @amount, @createdAt, @updatedAt)`,
-      ).run(position);
+        `INSERT INTO positions (id, kind, isin, name, bank, interest_rate, amount, created_at, updated_at)
+         VALUES (@id, @kind, @isin, @name, @bank, @interestRate, @amount, @createdAt, @updatedAt)`,
+      ).run({ ...position, interestRate: position.interestRate ?? null });
       return position;
     },
 
@@ -118,9 +136,10 @@ export function createPositionRepo(db: Db): PositionRepo {
       };
       db.prepare(
         `UPDATE positions
-         SET kind = @kind, isin = @isin, name = @name, amount = @amount, updated_at = @updatedAt
+         SET kind = @kind, isin = @isin, name = @name, bank = @bank,
+             interest_rate = @interestRate, amount = @amount, updated_at = @updatedAt
          WHERE id = @id`,
-      ).run(next);
+      ).run({ ...next, interestRate: next.interestRate ?? null });
       return next;
     },
 

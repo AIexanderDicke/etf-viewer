@@ -14,11 +14,9 @@ import { euro, percent } from "./format.ts";
 const TOPIC_LABELS: Record<BreakdownKind, string> = {
   sector: "Sector",
   geography: "Country",
-  region: "Region",
-  assetAllocation: "Asset class",
 };
 
-const TOPIC_ORDER: BreakdownKind[] = ["sector", "geography", "region", "assetAllocation"];
+const TOPIC_ORDER: BreakdownKind[] = ["sector", "geography"];
 
 /** Below this portfolio share a stock is merged into "Other stocks". */
 const STOCK_THRESHOLD = 0.005;

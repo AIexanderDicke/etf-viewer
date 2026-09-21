@@ -21,8 +21,6 @@ interface FundFactsPayload {
     topHoldings?: Array<{ name?: string; isin?: string; ticker?: string; weight?: number }>;
     sector?: unknown;
     geography?: unknown;
-    region?: unknown;
-    assetAllocation?: unknown;
   };
 }
 
@@ -87,8 +85,6 @@ export function normalizeFundFacts(isin: string, json: unknown): FundInfo {
   const breakdowns: Breakdowns = {
     sector: toBreakdown(data.sector),
     geography: toBreakdown(data.geography),
-    region: toBreakdown(data.region),
-    assetAllocation: toBreakdown(data.assetAllocation),
   };
 
   return {

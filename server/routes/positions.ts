@@ -3,7 +3,14 @@ import { isValidIsin, normalizeIsin } from "../../shared/isin.ts";
 import type { AssetKind, PositionInput } from "../../shared/types.ts";
 import type { PositionRepo } from "../db.ts";
 
-type ValidInput = Required<PositionInput>;
+interface ValidInput {
+  kind: AssetKind;
+  isin: string;
+  name: string;
+  bank: string;
+  interestRate?: number;
+  amount: number;
+}
 
 interface ParseResult {
   value?: ValidInput;
@@ -25,10 +32,20 @@ function parseInput(body: unknown): ParseResult {
   if (kind === "etf") {
     const isin = normalizeIsin(typeof input.isin === "string" ? input.isin : "");
     if (!isValidIsin(isin)) return { error: "invalid ISIN" };
-    return { value: { kind, isin, name, amount } };
+    return { value: { kind, isin, name, bank: "", amount } };
   }
 
-  return { value: { kind, isin: "", name, amount } };
+  const bank = typeof input.bank === "string" ? input.bank.trim() : "";
+  const rawRate = (input as { interestRate?: unknown }).interestRate;
+  let interestRate: number | undefined;
+  if (rawRate !== undefined && rawRate !== null && rawRate !== "") {
+    const parsed = Number(rawRate);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return { error: "interestRate must be a non-negative number" };
+    }
+    interestRate = parsed;
+  }
+  return { value: { kind, isin: "", name: "", bank, interestRate, amount } };
 }
 
 export function positionsRouter(repo: PositionRepo): Router {
@@ -61,6 +78,8 @@ export function positionsRouter(repo: PositionRepo): Router {
       kind: (body.kind ?? existing.kind) as AssetKind,
       isin: body.isin ?? existing.isin,
       name: body.name ?? existing.name,
+      bank: body.bank ?? existing.bank,
+      interestRate: body.interestRate ?? existing.interestRate,
       amount: body.amount ?? existing.amount,
     };
 

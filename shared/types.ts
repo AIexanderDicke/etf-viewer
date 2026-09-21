@@ -7,6 +7,10 @@ export interface Position {
   isin: string;
   /** Optional human readable label (e.g. "MSCI World"). */
   name: string;
+  /** Cash only: bank/institution the cash sits at. */
+  bank: string;
+  /** Cash only: annual interest rate in percent (e.g. 2.5 for 2.5% p.a.). */
+  interestRate?: number;
   /** Position value in EUR. */
   amount: number;
   createdAt: string;
@@ -17,6 +21,8 @@ export interface PositionInput {
   kind: AssetKind;
   isin?: string;
   name?: string;
+  bank?: string;
+  interestRate?: number;
   amount: number;
 }
 
@@ -51,8 +57,6 @@ export interface BreakdownEntry {
 export interface Breakdowns {
   sector: BreakdownEntry[];
   geography: BreakdownEntry[];
-  region: BreakdownEntry[];
-  assetAllocation: BreakdownEntry[];
 }
 
 export type BreakdownKind = keyof Breakdowns;
@@ -78,7 +82,7 @@ export interface FundInfo {
   topHoldings: Holding[];
   /** Share of the fund explained by topHoldings, 0..1. */
   coverage: number;
-  /** Sector / country / region / asset-class exposure, when published. */
+  /** Sector / country exposure, when published. */
   breakdowns?: Breakdowns;
 }
 

@@ -9,7 +9,7 @@ import type {
   TopicRow,
 } from "./types.ts";
 
-const BREAKDOWN_KINDS: BreakdownKind[] = ["sector", "geography", "region", "assetAllocation"];
+const BREAKDOWN_KINDS: BreakdownKind[] = ["sector", "geography"];
 const UNCLASSIFIED_LABEL = "Other / not disclosed";
 
 /**
