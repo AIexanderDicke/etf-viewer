@@ -13,4 +13,6 @@ export const config = {
   fundCacheTtlMs: Number(process.env.FUND_CACHE_TTL_MS ?? DAY_MS),
   /** Upstream request timeout. */
   upstreamTimeoutMs: Number(process.env.UPSTREAM_TIMEOUT_MS ?? 30_000),
+  /** Opt-in bundled fund snapshot. Testing/demo only; never on in production. */
+  enableSnapshotFallback: process.env.ENABLE_SNAPSHOT_FALLBACK === "1",
 };

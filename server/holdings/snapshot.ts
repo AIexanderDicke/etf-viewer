@@ -2,8 +2,8 @@ import type { FundInfo, Holding } from "../../shared/types.ts";
 import type { HoldingsProvider } from "./types.ts";
 
 /**
- * Bundled fallback so the app still shows something when the live provider is
- * unreachable and nothing is cached.
+ * Bundled fixture provider for tests and local demos, gated behind
+ * ENABLE_SNAPSHOT_FALLBACK. Never wired into the production provider chain.
  *
  * NOTE: keep this list small and clearly labelled. The live provider is the
  * source of truth; these entries are illustrative and may be out of date.

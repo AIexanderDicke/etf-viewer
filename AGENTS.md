@@ -90,6 +90,7 @@ export them in the shell.
 | `FUNDFACTS_BASE_URL` | `https://fundfactsapi.com/api/v1` |
 | `FUND_CACHE_TTL_MS` | `86400000` (24 h) |
 | `UPSTREAM_TIMEOUT_MS` | `30000` |
+| `ENABLE_SNAPSHOT_FALLBACK` | *(unset → off; testing/demo only)* |
 | `API_URL` | `http://localhost:3000` (Vite proxy target) |
 
 The SQLite file lives in `data/` and is gitignored.

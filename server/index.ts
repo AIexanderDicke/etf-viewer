@@ -9,8 +9,11 @@ import { positionsRouter } from "./routes/positions.ts";
 
 const db = getDb();
 
+const providers = [createFundFactsProvider()];
+if (config.enableSnapshotFallback) providers.push(createSnapshotProvider());
+
 const fundService = new FundService({
-  providers: [createFundFactsProvider(), createSnapshotProvider()],
+  providers,
   cache: createFundCacheRepo(db),
   onError: (provider, isin, error) => {
     console.warn(`[funds] provider "${provider}" failed for ${isin}:`, error);
