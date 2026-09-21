@@ -1,0 +1,20 @@
+{
+  "name": "etf-viewer",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Track an ETF portfolio by ISIN and see its allocation as a pie chart.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "chart.js": "^4.5.1"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0"
+  }
+}
