@@ -1,6 +1,6 @@
-import type { Allocation, AssetKind, FundInfo } from "../shared/types.ts";
+import type { Allocation, AssetKind, FundInfo, PortfolioSummary } from "../shared/types.ts";
 import { isValidIsin, summarize } from "./calc.ts";
-import { createAllocationChart } from "./chart.ts";
+import { allocationColors, createAllocationChart } from "./chart.ts";
 import { euro, integer, percent } from "./format.ts";
 import * as funds from "./funds.ts";
 import { createLookThroughView } from "./lookthrough.ts";
@@ -10,9 +10,16 @@ type TabId = "portfolio" | "lookthrough" | "config";
 
 const TEMPLATE = `
   <header class="app-header">
-    <div>
-      <h1>ETF Viewer</h1>
-      <p class="subtitle">Track your ETF portfolio by ISIN.</p>
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 17l5-5 4 3 6-8" />
+        </svg>
+      </span>
+      <div>
+        <h1>ETF Viewer</h1>
+        <p class="subtitle">Track your portfolio by ISIN</p>
+      </div>
     </div>
   </header>
 
@@ -20,60 +27,86 @@ const TEMPLATE = `
 
   <nav class="tabs" id="tabs">
     <button type="button" class="tab is-active" data-tab="portfolio">Portfolio</button>
-    <button type="button" class="tab" data-tab="lookthrough">Lookthrough</button>
-    <button type="button" class="tab" data-tab="config">Config</button>
+    <button type="button" class="tab" data-tab="lookthrough">Exposure</button>
+    <button type="button" class="tab" data-tab="config">Positions</button>
   </nav>
 
   <section class="view" id="view-portfolio">
-    <div class="chart-wrap chart-wrap-large">
-      <canvas id="allocation-chart"></canvas>
-      <div class="chart-center" id="chart-center" hidden>
-        <span class="chart-center-label">Total</span>
-        <span class="chart-center-value" id="total">—</span>
-      </div>
+    <div class="dashboard">
+      <section class="card chart-card">
+        <div class="chart-wrap">
+          <canvas id="allocation-chart"></canvas>
+          <div class="chart-center" id="chart-center" hidden>
+            <span class="chart-center-label">Total</span>
+            <span class="chart-center-value" id="total">—</span>
+          </div>
+        </div>
+        <p class="empty-hint" id="chart-empty" hidden>Add a position on the Positions tab to see the allocation.</p>
+      </section>
+      <section class="card">
+        <div class="card-head">
+          <h2>Allocation</h2>
+          <span class="card-meta" id="allocation-meta"></span>
+        </div>
+        <ul class="legend" id="allocation-legend"></ul>
+        <p class="empty-hint" id="legend-empty" hidden>No positions yet.</p>
+      </section>
     </div>
-    <p class="empty-hint" id="chart-empty" hidden>Add a position in Config to see the allocation.</p>
   </section>
 
   <section class="layout" id="view-lookthrough" hidden></section>
 
   <section class="view" id="view-config" hidden>
-    <section class="card config-card">
-      <h2>Positions</h2>
-      <form id="position-form" class="position-form" novalidate>
-        <div class="field">
-          <label for="kind">Type</label>
-          <select id="kind">
-            <option value="etf">ETF</option>
-            <option value="cash">Cash</option>
-          </select>
+    <div class="config-layout">
+      <section class="card">
+        <div class="card-head">
+          <h2>Add position</h2>
         </div>
-        <div class="field field-isin">
-          <label for="isin">ISIN</label>
-          <input id="isin" type="text" placeholder="IE00B4L5Y983" autocomplete="off" spellcheck="false" />
-          <p class="field-hint" id="isin-hint" role="status" hidden></p>
-        </div>
-        <div class="field field-name">
-          <label for="name">Name <span class="optional">(optional)</span></label>
-          <input id="name" type="text" placeholder="MSCI World" autocomplete="off" />
-        </div>
-        <div class="field">
-          <label for="amount">Value (EUR)</label>
-          <input id="amount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="1000" />
-        </div>
-        <button type="submit" class="primary" id="submit-button">Add position</button>
-        <p class="form-error" id="form-error" role="alert"></p>
-      </form>
+        <form id="position-form" class="position-form" novalidate>
+          <div class="field">
+            <label for="kind">Type</label>
+            <select id="kind">
+              <option value="etf">ETF</option>
+              <option value="cash">Cash</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="amount">Value (EUR)</label>
+            <input id="amount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="1000" />
+          </div>
+          <div class="field field-isin">
+            <label for="isin">ISIN</label>
+            <input id="isin" type="text" placeholder="IE00B4L5Y983" autocomplete="off" spellcheck="false" />
+            <p class="field-hint" id="isin-hint" role="status" hidden></p>
+          </div>
+          <div class="field field-cash" hidden>
+            <label for="bank">Bank</label>
+            <input id="bank" type="text" placeholder="Deutsche Bank · optional" autocomplete="off" />
+          </div>
+          <div class="field field-cash" hidden>
+            <label for="interest">Interest rate</label>
+            <input id="interest" type="number" min="0" step="0.01" inputmode="decimal" placeholder="2.5 · optional" />
+          </div>
+          <button type="submit" class="primary" id="submit-button">Add position</button>
+          <p class="form-error" id="form-error" role="alert"></p>
+        </form>
+      </section>
 
-      <table class="positions">
-        <thead>
-          <tr><th>Asset</th><th class="num">Value</th><th class="num">Share</th><th></th></tr>
-        </thead>
-        <tbody id="position-list"></tbody>
-      </table>
-      <p class="empty-hint" id="list-empty" hidden>No positions yet.</p>
-      <p class="empty-hint" id="list-loading">Loading positions…</p>
-    </section>
+      <section class="card">
+        <div class="card-head">
+          <h2>Positions</h2>
+          <span class="card-meta" id="positions-meta"></span>
+        </div>
+        <table class="positions">
+          <thead>
+            <tr><th>Asset</th><th class="num">Value</th><th class="num">Share</th><th></th></tr>
+          </thead>
+          <tbody id="position-list"></tbody>
+        </table>
+        <p class="empty-hint" id="list-empty" hidden>No positions yet.</p>
+        <p class="empty-hint" id="list-loading">Loading positions…</p>
+      </section>
+    </div>
   </section>
 `;
 
@@ -92,7 +125,8 @@ export function mountApp(root: HTMLElement): void {
   const kindInput = get<HTMLSelectElement>("kind");
   const isinInput = get<HTMLInputElement>("isin");
   const isinHint = get<HTMLParagraphElement>("isin-hint");
-  const nameInput = get<HTMLInputElement>("name");
+  const bankInput = get<HTMLInputElement>("bank");
+  const interestInput = get<HTMLInputElement>("interest");
   const amountInput = get<HTMLInputElement>("amount");
   const submitButton = get<HTMLButtonElement>("submit-button");
   const errorEl = get<HTMLParagraphElement>("form-error");
@@ -102,11 +136,15 @@ export function mountApp(root: HTMLElement): void {
   const listEmpty = get<HTMLParagraphElement>("list-empty");
   const listLoading = get<HTMLParagraphElement>("list-loading");
   const chartEmpty = get<HTMLParagraphElement>("chart-empty");
+  const legendEl = get<HTMLUListElement>("allocation-legend");
+  const legendEmpty = get<HTMLParagraphElement>("legend-empty");
+  const allocationMeta = get<HTMLSpanElement>("allocation-meta");
+  const positionsMeta = get<HTMLSpanElement>("positions-meta");
   const statusEl = get<HTMLParagraphElement>("app-status");
   const tabsEl = get<HTMLElement>("tabs");
 
   const isinField = document.querySelector<HTMLDivElement>(".field-isin")!;
-  const nameField = document.querySelector<HTMLDivElement>(".field-name")!;
+  const cashFields = document.querySelectorAll<HTMLDivElement>(".field-cash");
 
   tabsEl.addEventListener("click", (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("button[data-tab]");
@@ -144,7 +182,6 @@ export function mountApp(root: HTMLElement): void {
     try {
       const info = await funds.loadFund(isin);
       if (isinInput.value.trim().toUpperCase() !== isin) return;
-      if (!nameInput.value.trim()) nameInput.placeholder = info.name;
       setIsinHint(info.name, "ok", info);
     } catch {
       if (isinInput.value.trim().toUpperCase() !== isin) return;
@@ -167,16 +204,20 @@ export function mountApp(root: HTMLElement): void {
     isinTimer = window.setTimeout(() => void checkIsin(isin), 400);
   });
 
-  kindInput.addEventListener("change", () => {
+  function applyKind(): void {
     const isCash = kindInput.value === "cash";
     isinField.hidden = isCash;
-    nameField.hidden = isCash;
+    for (const field of cashFields) field.hidden = !isCash;
     if (isCash) {
       isinInput.value = "";
-      nameInput.value = "";
       setIsinHint("");
+    } else {
+      bankInput.value = "";
+      interestInput.value = "";
     }
-  });
+  }
+
+  kindInput.addEventListener("change", applyKind);
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -197,13 +238,24 @@ export function mountApp(root: HTMLElement): void {
       return;
     }
 
+    const interestRaw = interestInput.value.trim();
+    let interestRate: number | undefined;
+    if (kind === "cash" && interestRaw) {
+      interestRate = Number.parseFloat(interestRaw.replace(",", "."));
+      if (!Number.isFinite(interestRate) || interestRate < 0) {
+        errorEl.textContent = "Enter a valid interest rate.";
+        interestInput.focus();
+        return;
+      }
+    }
+
     submitButton.disabled = true;
     try {
-      let name = nameInput.value.trim();
+      let name = "";
       if (kind === "etf") {
         try {
           const info = await funds.loadFund(isin);
-          if (!name) name = info.name;
+          name = info.name;
         } catch {
           errorEl.textContent = `No fund data found for ${isin}. Check the ISIN.`;
           setIsinHint(`No fund data found for ${isin}. Check the ISIN.`, "error");
@@ -216,13 +268,13 @@ export function mountApp(root: HTMLElement): void {
         kind,
         isin: kind === "etf" ? isin : "",
         name,
+        bank: kind === "cash" ? bankInput.value.trim() : "",
+        interestRate,
         amount,
       });
       form.reset();
       kindInput.value = "etf";
-      isinField.hidden = false;
-      nameField.hidden = false;
-      nameInput.placeholder = "MSCI World";
+      applyKind();
       setIsinHint("");
       amountInput.focus();
     } catch (error) {
@@ -277,15 +329,59 @@ export function mountApp(root: HTMLElement): void {
     listLoading.hidden = state.status !== "loading";
     listEmpty.hidden = state.status !== "ready" || state.positions.length > 0;
     chartEmpty.hidden = hasAllocations;
+    legendEmpty.hidden = hasAllocations || state.status !== "ready";
+    allocationMeta.textContent = hasAllocations
+      ? `${summary.allocations.length} ${summary.allocations.length === 1 ? "position" : "positions"}`
+      : "";
+    positionsMeta.textContent =
+      state.status === "ready" && state.positions.length > 0
+        ? `${state.positions.length} ${state.positions.length === 1 ? "position" : "positions"}`
+        : "";
     listBody.replaceChildren(...summary.allocations.flatMap(renderRow));
+    renderLegend(summary);
 
     for (const allocation of summary.allocations) {
       if (allocation.position.kind === "etf") funds.ensureFund(allocation.position.isin);
     }
 
     const fundsByIsin = resolvedFunds(state.positions);
-    chart.update(summary, fundsByIsin);
+    chart.update(summary);
     lookThroughView.render(state.positions, fundsByIsin);
+  }
+
+  function renderLegend(summary: PortfolioSummary): void {
+    const colors = allocationColors(summary.allocations);
+    legendEl.replaceChildren(
+      ...summary.allocations.map((allocation, index) => {
+        const { position } = allocation;
+        const isCash = position.kind === "cash";
+        const info = isCash ? undefined : funds.getFundState(position.isin).info;
+
+        const dot = el("span", "legend-dot");
+        dot.style.setProperty("--dot", colors[index]);
+
+        const label = el("div", "legend-label");
+        label.append(
+          document.createTextNode(
+            isCash
+              ? position.bank
+                ? `Cash · ${position.bank}`
+                : "Cash"
+              : position.name || info?.name || position.isin,
+          ),
+        );
+        const meta = legendMeta(position.kind, position.isin, position.interestRate, info);
+        if (meta) label.append(el("span", "legend-sub", meta));
+
+        const values = el("div", "legend-values");
+        values.append(el("span", "legend-value", euro.format(allocation.amount)));
+        values.append(el("span", "legend-share", `${percent.format(allocation.share * 100)}%`));
+
+        const item = el("li", "legend-item");
+        item.append(dot, label, values);
+        return item;
+      }),
+    );
   }
 
   function renderRow(allocation: Allocation): HTMLTableRowElement[] {
@@ -301,7 +397,14 @@ export function mountApp(root: HTMLElement): void {
     assetCell.append(
       el("div", "asset-title", isCash ? "Cash" : position.name || info?.name || position.isin),
     );
-    if (!isCash) assetCell.append(el("div", "asset-sub", position.isin));
+    if (isCash) {
+      if (position.bank) assetCell.append(el("div", "asset-sub", position.bank));
+      if (typeof position.interestRate === "number") {
+        assetCell.append(el("div", "asset-meta", `${percent.format(position.interestRate)}% p.a.`));
+      }
+    } else {
+      assetCell.append(el("div", "asset-sub", position.isin));
+    }
     if (info) assetCell.append(renderChips(info));
     if (fundState?.status === "loading") assetCell.append(el("div", "asset-meta", "Resolving fund…"));
     if (fundState?.status === "error") {
@@ -373,7 +476,7 @@ export function mountApp(root: HTMLElement): void {
     table.className = "holdings";
     const head = document.createElement("thead");
     const headRow = document.createElement("tr");
-    headRow.append(el("th", "", "Top holding"));
+    headRow.append(el("th", "", "Holding"));
     headRow.append(el("th", "num", "Fund weight"));
     headRow.append(el("th", "num", "Exposure"));
     head.append(headRow);
@@ -392,7 +495,7 @@ export function mountApp(root: HTMLElement): void {
 
     const footer = el("p", "details-footer");
     const bits = [
-      `Top ${info.topHoldings.length} cover ${percent.format(info.coverage * 100)}% of the fund`,
+      `${info.topHoldings.length} holdings cover ${percent.format(info.coverage * 100)}% of the fund`,
     ];
     if (info.dataAsOf) bits.push(`data as of ${info.dataAsOf}`);
     footer.textContent = bits.join(" · ");
@@ -414,6 +517,25 @@ export function mountApp(root: HTMLElement): void {
   store.subscribe(render);
   funds.subscribeFunds(render);
   void store.init();
+}
+
+function legendMeta(
+  kind: AssetKind,
+  isin: string,
+  interestRate: number | undefined,
+  info: FundInfo | undefined,
+): string {
+  if (kind === "cash") {
+    return typeof interestRate === "number" ? `${percent.format(interestRate)}% p.a.` : "";
+  }
+  const parts: string[] = [];
+  if (isin) parts.push(isin);
+  if (info?.ter) parts.push(`TER ${info.ter}`);
+  if (info?.currency) parts.push(info.currency);
+  if (typeof info?.holdingsCount === "number") {
+    parts.push(`${integer.format(info.holdingsCount)} holdings`);
+  }
+  return parts.join(" · ");
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
