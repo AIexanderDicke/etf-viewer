@@ -106,18 +106,31 @@ export function normalizeFundFacts(isin: string, json: unknown): FundInfo {
   };
 }
 
-export function createFundFactsProvider(fetchImpl: typeof fetch = fetch): HoldingsProvider {
+export interface FundFactsProviderOptions {
+  baseUrl?: string;
+  apiKey?: string;
+  timeoutMs?: number;
+}
+
+export function createFundFactsProvider(
+  fetchImpl: typeof fetch = fetch,
+  options: FundFactsProviderOptions = {},
+): HoldingsProvider {
+  const baseUrl = options.baseUrl ?? config.fundFactsBaseUrl;
+  const apiKey = options.apiKey ?? config.fundFactsApiKey;
+  const timeoutMs = options.timeoutMs ?? config.upstreamTimeoutMs;
+
   return {
     name: SOURCE,
     async getFund(isin) {
-      const path = config.fundFactsApiKey ? "funds" : "demo/funds";
-      const url = `${config.fundFactsBaseUrl}/${path}/${encodeURIComponent(isin)}`;
+      const path = apiKey ? "funds" : "demo/funds";
+      const url = `${baseUrl}/${path}/${encodeURIComponent(isin)}`;
       const headers: Record<string, string> = { Accept: "application/json" };
-      if (config.fundFactsApiKey) headers.Authorization = `Bearer ${config.fundFactsApiKey}`;
+      if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
       const response = await fetchImpl(url, {
         headers,
-        signal: AbortSignal.timeout(config.upstreamTimeoutMs),
+        signal: AbortSignal.timeout(timeoutMs),
       });
 
       // FundFacts answers 404 (not a fund) or 400 (invalid ISIN) for unknown
