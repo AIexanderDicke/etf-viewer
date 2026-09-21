@@ -124,4 +124,27 @@ describe("fund cache repo", () => {
     now += 1001;
     expect(cache.get("IE00B4L5Y983")?.expired).toBe(true);
   });
+
+  it("clears one entry or the whole cache", () => {
+    const db = createDb(":memory:");
+    const cache = createFundCacheRepo(db);
+    const info = (isin: string) => ({
+      isin,
+      name: isin,
+      source: "test",
+      stale: false,
+      topHoldings: [],
+      coverage: 0,
+    });
+
+    cache.set("IE00B4L5Y983", info("IE00B4L5Y983"), 1000);
+    cache.set("IE00B5BMR087", info("IE00B5BMR087"), 1000);
+
+    cache.clear("IE00B4L5Y983");
+    expect(cache.get("IE00B4L5Y983")).toBeNull();
+    expect(cache.get("IE00B5BMR087")).not.toBeNull();
+
+    cache.clear();
+    expect(cache.get("IE00B5BMR087")).toBeNull();
+  });
 });

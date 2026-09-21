@@ -50,6 +50,17 @@ describe("summarize", () => {
     expect(summary.allocations).toHaveLength(1);
   });
 
+  it("ignores non-finite and negative amounts", () => {
+    const summary = summarize([
+      position({ kind: "cash", amount: Number.NaN }),
+      position({ kind: "cash", amount: -50 }),
+      position({ kind: "cash", amount: 200 }),
+    ]);
+
+    expect(summary.total).toBe(200);
+    expect(summary.allocations).toHaveLength(1);
+  });
+
   it("handles an empty portfolio without dividing by zero", () => {
     expect(summarize([]).total).toBe(0);
     expect(summarize([]).allocations).toHaveLength(0);

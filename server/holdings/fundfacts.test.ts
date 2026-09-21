@@ -1,5 +1,15 @@
-import { describe, expect, it } from "vitest";
-import { normalizeFundFacts } from "./fundfacts.ts";
+import { describe, expect, it, vi } from "vitest";
+import { createFundFactsProvider, normalizeFundFacts } from "./fundfacts.ts";
+
+const ISIN = "IE00B4L5Y983";
+
+function fetchReturning(body: unknown, status = 200) {
+  return vi
+    .fn()
+    .mockResolvedValue(
+      new Response(body === null ? null : JSON.stringify(body), { status }),
+    ) as unknown as typeof fetch;
+}
 
 const payload = {
   isin: "IE00B4L5Y983",
@@ -66,5 +76,42 @@ describe("normalizeFundFacts", () => {
     expect(info.name).toBe("XX0000000000");
     expect(info.topHoldings).toEqual([]);
     expect(info.coverage).toBe(0);
+  });
+});
+
+describe("createFundFactsProvider", () => {
+  const baseUrl = "https://api.test/v1";
+
+  it("uses the keyless demo endpoint without a key", async () => {
+    const fetchImpl = fetchReturning(payload);
+    const provider = createFundFactsProvider(fetchImpl, { baseUrl, apiKey: "" });
+
+    const info = await provider.getFund(ISIN);
+    expect(info?.name).toBe("iShares Core MSCI World UCITS ETF");
+
+    const [url, init] = vi.mocked(fetchImpl).mock.calls[0]!;
+    expect(url).toBe(`${baseUrl}/demo/funds/${ISIN}`);
+    expect(new Headers(init?.headers).get("Authorization")).toBeNull();
+  });
+
+  it("uses the authenticated endpoint when a key is set", async () => {
+    const fetchImpl = fetchReturning(payload);
+    const provider = createFundFactsProvider(fetchImpl, { baseUrl, apiKey: "secret" });
+
+    await provider.getFund(ISIN);
+
+    const [url, init] = vi.mocked(fetchImpl).mock.calls[0]!;
+    expect(url).toBe(`${baseUrl}/funds/${ISIN}`);
+    expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer secret");
+  });
+
+  it.each([400, 404])("returns null for a %i response", async (status) => {
+    const provider = createFundFactsProvider(fetchReturning(null, status), { baseUrl });
+    expect(await provider.getFund(ISIN)).toBeNull();
+  });
+
+  it("throws for other non-ok responses", async () => {
+    const provider = createFundFactsProvider(fetchReturning(null, 503), { baseUrl });
+    await expect(provider.getFund(ISIN)).rejects.toThrow(`FundFacts responded 503 for ${ISIN}`);
   });
 });

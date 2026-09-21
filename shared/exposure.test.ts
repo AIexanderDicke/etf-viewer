@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeLookThrough, normalizeName, stockKey } from "./exposure.ts";
+import { computeLookThrough, hasTopicData, normalizeName, stockKey } from "./exposure.ts";
 import type { FundInfo, Position } from "./types.ts";
 
 function position(partial: Partial<Position> & Pick<Position, "kind" | "amount">): Position {
@@ -145,5 +145,95 @@ describe("computeLookThrough", () => {
     );
     expect(dirty.total).toBe(100);
     expect(dirty.unresolved.amount).toBe(0);
+  });
+
+  it("handles an empty portfolio without dividing by zero", () => {
+    const empty = computeLookThrough([], funds);
+    expect(empty.total).toBe(0);
+    expect(empty.cash.share).toBe(0);
+    expect(empty.unresolved.share).toBe(0);
+    expect(empty.unclassified.share).toBe(0);
+    expect(empty.topics.sector.rows).toEqual([]);
+    expect(empty.coverage).toBe(0);
+  });
+
+  it("reports no topic data for a cash-only portfolio", () => {
+    const cashOnly = computeLookThrough([position({ kind: "cash", amount: 100 })], funds);
+    expect(cashOnly.cash.amount).toBe(100);
+    expect(cashOnly.topics.sector.basis).toBe(0);
+    expect(hasTopicData(cashOnly.topics.sector)).toBe(false);
+    expect(hasTopicData(result.topics.sector)).toBe(true);
+  });
+
+  it("keeps the breakdown basis to the funds that publish it", () => {
+    const onlySp500 = new Map([["IE00B5BMR087", funds.get("IE00B5BMR087")!]]);
+    const partial = computeLookThrough(positions, onlySp500);
+    expect(partial.topics.sector.basis).toBe(4000);
+    expect(partial.topics.geography.rows).toEqual([]);
+  });
+
+  it("falls back to the normalised name when no ISIN or ticker is present", () => {
+    const byName = new Map<string, FundInfo>([
+      ["IE00B4L5Y983", fund("IE00B4L5Y983", [["Apple Inc", 10]])],
+    ]);
+    const lookup = computeLookThrough(
+      [position({ kind: "etf", isin: "IE00B4L5Y983", amount: 1000 })],
+      byName,
+    );
+    expect(lookup.stocks[0]?.key).toBe("name:APPLE");
+  });
+
+  it("deduplicates repeated unresolved ISINs", () => {
+    const result = computeLookThrough(
+      [
+        position({ kind: "etf", isin: "IE00BKM4GZ66", amount: 100 }),
+        position({ kind: "etf", isin: "IE00BKM4GZ66", amount: 200 }),
+      ],
+      new Map(),
+    );
+    expect(result.unresolved.amount).toBe(300);
+    expect(result.unresolved.isins).toEqual(["IE00BKM4GZ66"]);
+  });
+
+  it("clamps coverage above 100% and adds no unclassified remainder", () => {
+    const over = new Map([
+      [
+        "IE00B4L5Y983",
+        fund("IE00B4L5Y983", [
+          ["A", 80],
+          ["B", 50],
+        ]),
+      ],
+    ]);
+    const result = computeLookThrough(
+      [position({ kind: "etf", isin: "IE00B4L5Y983", amount: 1000 })],
+      over,
+    );
+    expect(result.unclassified.amount).toBe(0);
+    expect(result.coverage).toBeCloseTo(1, 5);
+  });
+
+  it("does not add a not-disclosed bucket when a breakdown exceeds 100%", () => {
+    const over = new Map([
+      [
+        "IE00B4L5Y983",
+        fund(
+          "IE00B4L5Y983",
+          [],
+          [
+            ["A", 60],
+            ["B", 60],
+          ],
+        ),
+      ],
+    ]);
+    const result = computeLookThrough(
+      [position({ kind: "etf", isin: "IE00B4L5Y983", amount: 1000 })],
+      over,
+    );
+    expect(result.topics.sector.rows.some((row) => row.label === "Other / not disclosed")).toBe(
+      false,
+    );
+    expect(result.topics.sector.basis).toBe(1000);
   });
 });
