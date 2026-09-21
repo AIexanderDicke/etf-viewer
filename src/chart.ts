@@ -1,6 +1,6 @@
 import { ArcElement, Chart, DoughnutController, Legend, Tooltip } from "chart.js";
 import { euro, percent } from "./format.ts";
-import type { PortfolioSummary } from "./types.ts";
+import type { PortfolioSummary } from "../shared/types.ts";
 
 Chart.register(ArcElement, DoughnutController, Legend, Tooltip);
 

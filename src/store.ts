@@ -1,60 +1,61 @@
-import type { Position } from "./types.ts";
+import type { Position, PositionInput } from "../shared/types.ts";
+import { api } from "./api.ts";
 
-const STORAGE_KEY = "etf-viewer.positions.v1";
+export interface StoreState {
+  status: "loading" | "ready" | "error";
+  error?: string;
+  positions: Position[];
+}
 
-type Listener = (positions: Position[]) => void;
+type Listener = (state: StoreState) => void;
 
-let positions: Position[] = load();
+let state: StoreState = { status: "loading", positions: [] };
 const listeners = new Set<Listener>();
 
-function load(): Position[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as Position[]) : [];
-  } catch {
-    return [];
-  }
+function setState(patch: Partial<StoreState>): void {
+  state = { ...state, ...patch };
+  for (const listener of listeners) listener(state);
 }
 
-function persist() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(positions));
-  } catch {
-    // Storage may be unavailable (private mode); the app still works in memory.
-  }
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : "Unexpected error";
 }
 
-function emit() {
-  persist();
-  for (const listener of listeners) listener(positions);
-}
-
-export function getPositions(): readonly Position[] {
-  return positions;
+export function getState(): StoreState {
+  return state;
 }
 
 export function subscribe(listener: Listener): () => void {
   listeners.add(listener);
-  listener(positions);
+  listener(state);
   return () => listeners.delete(listener);
 }
 
-export function addPosition(position: Omit<Position, "id">): void {
-  const id = crypto.randomUUID();
-  positions = [...positions, { ...position, id }];
-  emit();
+export async function init(): Promise<void> {
+  setState({ status: "loading" });
+  try {
+    const positions = await api.listPositions();
+    setState({ status: "ready", positions, error: undefined });
+  } catch (error) {
+    setState({ status: "error", error: message(error) });
+  }
 }
 
-export function updatePosition(id: string, patch: Partial<Omit<Position, "id">>): void {
-  positions = positions.map((position) =>
-    position.id === id ? { ...position, ...patch } : position,
-  );
-  emit();
+async function refresh(): Promise<void> {
+  try {
+    const positions = await api.listPositions();
+    setState({ status: "ready", positions, error: undefined });
+  } catch (error) {
+    setState({ status: "error", error: message(error) });
+  }
 }
 
-export function removePosition(id: string): void {
-  positions = positions.filter((position) => position.id !== id);
-  emit();
+export async function addPosition(input: PositionInput): Promise<void> {
+  await api.addPosition(input);
+  await refresh();
+}
+
+export async function removePosition(id: string): Promise<void> {
+  await api.removePosition(id);
+  await refresh();
 }

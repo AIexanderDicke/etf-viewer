@@ -241,3 +241,132 @@ button.remove:hover {
   text-align: center;
   margin: 0.5rem 0;
 }
+
+.status {
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.12);
+  color: #fecaca;
+  font-size: 0.85rem;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+}
+
+.chip,
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.42rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.badge-warn {
+  border-color: rgba(245, 158, 11, 0.5);
+  color: #fcd34d;
+}
+
+.asset-meta {
+  margin-top: 0.3rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.asset-meta-error {
+  color: #fca5a5;
+}
+
+.actions {
+  text-align: right;
+  white-space: nowrap;
+  width: 4.5rem;
+}
+
+button.toggle {
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-right: 0.35rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+button.toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.details-row td {
+  background: rgba(11, 17, 32, 0.45);
+  border-radius: 12px;
+}
+
+.fund-details {
+  padding: 0.25rem 0.25rem 0.5rem;
+}
+
+.details-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+
+.details-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+table.holdings {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+table.holdings th {
+  text-align: left;
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0 0.4rem 0.4rem;
+}
+
+table.holdings td {
+  padding: 0.35rem 0.4rem;
+  border-top: 1px solid var(--border);
+}
+
+table.holdings .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.details-footer {
+  margin: 0.6rem 0 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+}

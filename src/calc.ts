@@ -1,9 +1,7 @@
-import type { Allocation, PortfolioSummary, Position } from "./types.ts";
+import { isValidIsin } from "../shared/isin.ts";
+import type { Allocation, PortfolioSummary, Position } from "../shared/types.ts";
 
-/** Light structural check for an ISIN: 2 letters + 9 alphanumerics + check digit. */
-export function isValidIsin(isin: string): boolean {
-  return /^[A-Z]{2}[A-Z0-9]{9}\d$/.test(isin.trim().toUpperCase());
-}
+export { isValidIsin };
 
 export function isUsable(position: Position): boolean {
   if (!Number.isFinite(position.amount) || position.amount <= 0) return false;

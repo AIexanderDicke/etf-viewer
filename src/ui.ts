@@ -1,8 +1,9 @@
+import type { Allocation, AssetKind, FundInfo } from "../shared/types.ts";
 import { isValidIsin, summarize } from "./calc.ts";
 import { createAllocationChart } from "./chart.ts";
-import { euro, percent } from "./format.ts";
+import { euro, integer, percent } from "./format.ts";
+import * as funds from "./funds.ts";
 import * as store from "./store.ts";
-import type { Allocation, AssetKind, PortfolioSummary } from "./types.ts";
 
 const TEMPLATE = `
   <header class="app-header">
@@ -15,6 +16,8 @@ const TEMPLATE = `
       <span class="total-value" id="total">—</span>
     </div>
   </header>
+
+  <p class="status" id="app-status" role="alert" hidden></p>
 
   <main class="layout">
     <section class="card chart-card">
@@ -45,7 +48,7 @@ const TEMPLATE = `
           <label for="amount">Value (EUR)</label>
           <input id="amount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="1000" />
         </div>
-        <button type="submit" class="primary">Add position</button>
+        <button type="submit" class="primary" id="submit-button">Add position</button>
         <p class="form-error" id="form-error" role="alert"></p>
       </form>
 
@@ -55,10 +58,13 @@ const TEMPLATE = `
         </thead>
         <tbody id="position-list"></tbody>
       </table>
-      <p class="empty-hint" id="list-empty">No positions yet.</p>
+      <p class="empty-hint" id="list-empty" hidden>No positions yet.</p>
+      <p class="empty-hint" id="list-loading">Loading positions…</p>
     </section>
   </main>
 `;
+
+const expanded = new Set<string>();
 
 export function mountApp(root: HTMLElement): void {
   root.innerHTML = TEMPLATE;
@@ -69,14 +75,17 @@ export function mountApp(root: HTMLElement): void {
   const isinInput = get<HTMLInputElement>("isin");
   const nameInput = get<HTMLInputElement>("name");
   const amountInput = get<HTMLInputElement>("amount");
+  const submitButton = get<HTMLButtonElement>("submit-button");
   const errorEl = get<HTMLParagraphElement>("form-error");
   const totalEl = get<HTMLSpanElement>("total");
   const listBody = get<HTMLTableSectionElement>("position-list");
   const listEmpty = get<HTMLParagraphElement>("list-empty");
+  const listLoading = get<HTMLParagraphElement>("list-loading");
   const chartEmpty = get<HTMLParagraphElement>("chart-empty");
+  const statusEl = get<HTMLParagraphElement>("app-status");
 
-  const nameField = document.querySelector<HTMLDivElement>(".field-name")!;
   const isinField = document.querySelector<HTMLDivElement>(".field-isin")!;
+  const nameField = document.querySelector<HTMLDivElement>(".field-name")!;
 
   kindInput.addEventListener("change", () => {
     const isCash = kindInput.value === "cash";
@@ -88,7 +97,7 @@ export function mountApp(root: HTMLElement): void {
     }
   });
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     errorEl.textContent = "";
 
@@ -101,80 +110,210 @@ export function mountApp(root: HTMLElement): void {
 
     const kind = kindInput.value as AssetKind;
     const isin = isinInput.value.trim().toUpperCase();
-
     if (kind === "etf" && !isValidIsin(isin)) {
       errorEl.textContent = "Enter a valid ISIN (e.g. IE00B4L5Y983).";
       isinInput.focus();
       return;
     }
 
-    store.addPosition({ kind, isin: kind === "etf" ? isin : "", name: nameInput.value.trim(), amount });
-
-    form.reset();
-    kindInput.value = "etf";
-    isinField.hidden = false;
-    nameField.hidden = false;
-    amountInput.focus();
+    submitButton.disabled = true;
+    try {
+      await store.addPosition({
+        kind,
+        isin: kind === "etf" ? isin : "",
+        name: nameInput.value.trim(),
+        amount,
+      });
+      form.reset();
+      kindInput.value = "etf";
+      isinField.hidden = false;
+      nameField.hidden = false;
+      amountInput.focus();
+    } catch (error) {
+      errorEl.textContent = error instanceof Error ? error.message : "Could not save position.";
+    } finally {
+      submitButton.disabled = false;
+    }
   });
 
   listBody.addEventListener("click", (event) => {
-    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("button[data-id]");
-    if (button) store.removePosition(button.dataset.id!);
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("button[data-action]");
+    if (!button) return;
+    const id = button.dataset.id!;
+
+    if (button.dataset.action === "remove") {
+      void store.removePosition(id).catch(() => undefined);
+      return;
+    }
+    if (button.dataset.action === "toggle") {
+      if (expanded.has(id)) expanded.delete(id);
+      else expanded.add(id);
+      render();
+    }
   });
 
-  store.subscribe((positions) => {
-    const summary = summarize(positions);
+  function render(): void {
+    const state = store.getState();
+
+    if (state.status === "error") {
+      statusEl.hidden = false;
+      statusEl.textContent = `Backend error: ${state.error ?? "unknown"}. Is the API server running?`;
+    } else {
+      statusEl.hidden = true;
+      statusEl.textContent = "";
+    }
+
+    const summary = summarize(state.positions);
     totalEl.textContent = summary.total > 0 ? euro.format(summary.total) : "—";
 
-    renderList(listBody, summary);
-    listEmpty.hidden = positions.length > 0;
+    listLoading.hidden = state.status !== "loading";
+    listEmpty.hidden = state.status !== "ready" || state.positions.length > 0;
     chartEmpty.hidden = summary.allocations.length > 0;
+    listBody.replaceChildren(...summary.allocations.flatMap(renderRow));
+
+    // Kick off fund lookups for any ETF that has not been resolved yet.
+    for (const allocation of summary.allocations) {
+      if (allocation.position.kind === "etf") funds.ensureFund(allocation.position.isin);
+    }
+
     chart.update(summary);
-  });
-}
-
-function renderList(tbody: HTMLTableSectionElement, summary: PortfolioSummary): void {
-  tbody.replaceChildren(...summary.allocations.map(renderRow));
-}
-
-function renderRow({ position, amount, share }: Allocation) {
-  const isCash = position.kind === "cash";
-
-  const row = document.createElement("tr");
-
-  const assetCell = document.createElement("td");
-  const title = document.createElement("div");
-  title.className = "asset-title";
-  title.textContent = isCash ? "Cash" : position.name || position.isin;
-  assetCell.append(title);
-  if (!isCash && position.name) {
-    const sub = document.createElement("div");
-    sub.className = "asset-sub";
-    sub.textContent = position.isin;
-    assetCell.append(sub);
   }
 
-  const valueCell = document.createElement("td");
-  valueCell.className = "num";
-  valueCell.textContent = euro.format(amount);
+  function renderRow(allocation: Allocation): HTMLTableRowElement[] {
+    const { position, amount, share } = allocation;
+    const isCash = position.kind === "cash";
+    const fundState = isCash ? null : funds.getFundState(position.isin);
+    const info = fundState?.info;
 
-  const shareCell = document.createElement("td");
-  shareCell.className = "num";
-  shareCell.textContent = `${percent.format(share * 100)}%`;
+    const row = document.createElement("tr");
+    row.className = "position-row";
 
-  const actionCell = document.createElement("td");
-  actionCell.className = "actions";
-  const remove = document.createElement("button");
-  remove.type = "button";
-  remove.className = "remove";
-  remove.dataset.id = position.id;
-  remove.title = "Remove position";
-  remove.setAttribute("aria-label", `Remove ${title.textContent}`);
-  remove.textContent = "×";
-  actionCell.append(remove);
+    const assetCell = document.createElement("td");
+    assetCell.append(
+      el("div", "asset-title", isCash ? "Cash" : position.name || info?.name || position.isin),
+    );
+    if (!isCash) assetCell.append(el("div", "asset-sub", position.isin));
+    if (info) assetCell.append(renderChips(info));
+    if (fundState?.status === "loading") assetCell.append(el("div", "asset-meta", "Resolving fund…"));
+    if (fundState?.status === "error") {
+      assetCell.append(el("div", "asset-meta asset-meta-error", fundState.error ?? "Fund data unavailable"));
+    }
 
-  row.append(assetCell, valueCell, shareCell, actionCell);
-  return row;
+    const valueCell = el("td", "num", euro.format(amount));
+    const shareCell = el("td", "num", `${percent.format(share * 100)}%`);
+
+    const actions = el("td", "actions");
+    if (!isCash) {
+      const toggle = el("button", "toggle", expanded.has(position.id) ? "▾" : "▸") as HTMLButtonElement;
+      toggle.type = "button";
+      toggle.dataset.action = "toggle";
+      toggle.dataset.id = position.id;
+      toggle.title = "Show fund details";
+      toggle.setAttribute("aria-label", "Show fund details");
+      actions.append(toggle);
+    }
+    const remove = el("button", "remove", "×") as HTMLButtonElement;
+    remove.type = "button";
+    remove.dataset.action = "remove";
+    remove.dataset.id = position.id;
+    remove.title = "Remove position";
+    remove.setAttribute("aria-label", "Remove position");
+    actions.append(remove);
+
+    row.append(assetCell, valueCell, shareCell, actions);
+
+    if (!isCash && expanded.has(position.id)) {
+      const details = document.createElement("tr");
+      details.className = "details-row";
+      const cell = el("td", "");
+      cell.colSpan = 4;
+      cell.append(renderDetails(fundState, amount));
+      details.append(cell);
+      return [row, details];
+    }
+
+    return [row];
+  }
+
+  function renderDetails(state: funds.FundState | null, positionValue: number): HTMLElement {
+    const box = el("div", "fund-details");
+    if (!state || state.status === "loading") {
+      box.append(el("p", "asset-meta", "Loading fund data…"));
+      return box;
+    }
+    if (state.status === "error" || !state.info) {
+      box.append(el("p", "asset-meta asset-meta-error", state.error ?? "Fund data unavailable"));
+      return box;
+    }
+
+    const info = state.info;
+    const heading = el("div", "details-heading");
+    heading.append(el("span", "details-title", info.name));
+    if (info.stale) heading.append(el("span", "badge badge-warn", "cached / stale"));
+    heading.append(el("span", "badge", info.source));
+    box.append(heading);
+
+    if (info.topHoldings.length === 0) {
+      box.append(el("p", "asset-meta", "No holdings published for this fund."));
+      return box;
+    }
+
+    const table = document.createElement("table");
+    table.className = "holdings";
+    const head = document.createElement("thead");
+    const headRow = document.createElement("tr");
+    headRow.append(el("th", "", "Top holding"));
+    headRow.append(el("th", "num", "Fund weight"));
+    headRow.append(el("th", "num", "Exposure"));
+    head.append(headRow);
+    table.append(head);
+
+    const body = document.createElement("tbody");
+    for (const holding of info.topHoldings) {
+      const tr = document.createElement("tr");
+      tr.append(el("td", "", holding.name));
+      tr.append(el("td", "num", `${percent.format(holding.weight)}%`));
+      tr.append(el("td", "num", euro.format((holding.weight / 100) * positionValue)));
+      body.append(tr);
+    }
+    table.append(body);
+    box.append(table);
+
+    const footer = el("p", "details-footer");
+    const bits = [
+      `Top ${info.topHoldings.length} cover ${percent.format(info.coverage * 100)}% of the fund`,
+    ];
+    if (info.dataAsOf) bits.push(`data as of ${info.dataAsOf}`);
+    footer.textContent = bits.join(" · ");
+    box.append(footer);
+
+    return box;
+  }
+
+  function renderChips(info: FundInfo): HTMLElement {
+    const chips = el("div", "chips");
+    if (info.ter) chips.append(el("span", "chip", `TER ${info.ter}`));
+    if (info.currency) chips.append(el("span", "chip", info.currency));
+    if (typeof info.holdingsCount === "number") {
+      chips.append(el("span", "chip", `${integer.format(info.holdingsCount)} holdings`));
+    }
+    return chips;
+  }
+
+  store.subscribe(render);
+  funds.subscribeFunds(render);
+  void store.init();
+}
+
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className: string,
+  text?: string,
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
 }
 
 function get<T extends HTMLElement>(id: string): T {
