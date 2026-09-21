@@ -40,8 +40,9 @@ shared/            used by both sides
   portfolio.ts     isUsable / summarize (allocation math)
   exposure.ts      pure look-through aggregation
 server/            backend
-  index.ts         Express app
-  config.ts        env configuration
+  app.ts           Express app factory (createApp), error handling
+  index.ts         bootstrap: db, providers, listen, graceful shutdown
+  config.ts        env configuration (validated at startup)
   db.ts            SQLite schema + position/fund-cache repositories
   routes/          positions + funds endpoints
   holdings/        HoldingsProvider interface, FundFacts, snapshot, FundService
@@ -59,28 +60,39 @@ src/               frontend
 index.html         Vite entry document
 ```
 
-Tests are colocated `*.test.ts` next to the source they cover.
+Tests are colocated `*.test.ts` next to the source they cover. Tooling config
+lives in `biome.json`, `.prettierrc.json` and `vitest.config.ts`.
 
 ## Scripts
 
 ```bash
-npm run dev        # backend + frontend together (watch mode)
-npm run dev:server # backend only
-npm run dev:web    # frontend only
-npm run build      # typecheck + production frontend build (dist/)
-npm run start      # backend only (no watch)
-npm run preview    # serve the production build
-npm test           # vitest run
-npm run typecheck  # frontend (tsconfig) + backend (tsconfig.server) TypeScript
+npm run dev            # backend + frontend together (watch mode)
+npm run dev:server     # backend only
+npm run dev:web        # frontend only
+npm run build          # typecheck + production frontend build (dist/)
+npm run start          # backend only (no watch)
+npm run preview        # serve the production build
+npm test               # vitest run
+npm run test:coverage  # vitest + v8 coverage with a 90% gate (writes coverage/)
+npm run typecheck      # frontend (tsconfig) + backend (tsconfig.server) TypeScript
+npm run type-check     # alias of typecheck
+npm run lint           # biome lint (lint:fix to apply safe fixes)
+npm run format         # prettier --write (format:check to verify)
+npm run check          # type-check + lint + tests
 ```
 
-Always run `npm run typecheck` and `npm test` before considering work done;
-`npm run build` for anything touching the frontend.
+Always run `npm run type-check`, `npm run lint` and `npm test` before considering
+work done; `npm run test:coverage` when touching tested logic; `npm run build`
+for anything touching the frontend.
+
+Linting is **Biome** (typescript-eslint does not support the native TypeScript 7
+compiler this repo uses) and formatting is **Prettier** (`printWidth: 100`).
 
 ## Configuration
 
 Backend reads env vars (see `server/config.ts`); no `.env` loader is wired up,
-export them in the shell.
+export them in the shell. `.env.example` is a copy-paste template. Invalid values
+fail fast at startup.
 
 | Env var                    | Default                                     |
 | -------------------------- | ------------------------------------------- |
