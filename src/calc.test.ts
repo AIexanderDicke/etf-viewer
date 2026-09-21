@@ -5,6 +5,7 @@ import { isValidIsin, summarize } from "./calc.ts";
 function position(partial: Partial<Position> & Pick<Position, "kind" | "amount">): Position {
   return {
     id: partial.id ?? Math.random().toString(36),
+    portfolioId: partial.portfolioId ?? "portfolio-1",
     kind: partial.kind,
     isin: partial.isin ?? "",
     name: partial.name ?? "",

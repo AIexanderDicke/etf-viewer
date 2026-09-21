@@ -1,4 +1,4 @@
-import type { FundInfo, Position, PositionInput } from "../shared/types.ts";
+import type { FundInfo, Portfolio, Position, PositionInput } from "../shared/types.ts";
 
 /** A PATCH body: `interestRate: null` explicitly clears the rate. */
 export type PositionPatch = Omit<Partial<PositionInput>, "interestRate"> & {
@@ -27,9 +27,25 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  listPositions: () => request<Position[]>("/api/positions"),
-  addPosition: (input: PositionInput) =>
-    request<Position>("/api/positions", { method: "POST", body: JSON.stringify(input) }),
+  listPortfolios: () => request<Portfolio[]>("/api/portfolios"),
+  createPortfolio: (name: string) =>
+    request<Portfolio>("/api/portfolios", { method: "POST", body: JSON.stringify({ name }) }),
+  renamePortfolio: (id: string, name: string) =>
+    request<Portfolio>(`/api/portfolios/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+  listPositions: (portfolioId?: string) =>
+    request<Position[]>(
+      portfolioId
+        ? `/api/positions?portfolioId=${encodeURIComponent(portfolioId)}`
+        : "/api/positions",
+    ),
+  addPosition: (input: PositionInput, portfolioId: string) =>
+    request<Position>("/api/positions", {
+      method: "POST",
+      body: JSON.stringify({ ...input, portfolioId }),
+    }),
   updatePosition: (id: string, patch: PositionPatch) =>
     request<Position>(`/api/positions/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   removePosition: (id: string) => request<void>(`/api/positions/${id}`, { method: "DELETE" }),

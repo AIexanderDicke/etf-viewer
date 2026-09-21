@@ -1,7 +1,18 @@
 export type AssetKind = "etf" | "cash";
 
+/** A named (or still unnamed) portfolio container. Positions belong to one. */
+export interface Portfolio {
+  id: string;
+  /** User-assigned name; empty while unnamed. */
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Position {
   id: string;
+  /** The portfolio this position belongs to. */
+  portfolioId: string;
   kind: AssetKind;
   /** ISIN for ETFs, empty for cash. */
   isin: string;

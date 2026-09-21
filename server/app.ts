@@ -1,10 +1,12 @@
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
-import type { PositionRepo } from "./db.ts";
+import type { PortfolioRepo, PositionRepo } from "./db.ts";
 import type { FundService } from "./holdings/service.ts";
 import { fundsRouter } from "./routes/funds.ts";
+import { portfoliosRouter } from "./routes/portfolios.ts";
 import { positionsRouter } from "./routes/positions.ts";
 
 export interface AppDeps {
+  readonly portfolioRepo: PortfolioRepo;
   readonly positionRepo: PositionRepo;
   readonly fundService: FundService;
   readonly fundDataMode: string;
@@ -35,7 +37,8 @@ export function createApp(deps: AppDeps): Express {
     res.json({ status: "ok", fundDataMode: deps.fundDataMode });
   });
 
-  app.use("/api/positions", positionsRouter(deps.positionRepo));
+  app.use("/api/portfolios", portfoliosRouter(deps.portfolioRepo));
+  app.use("/api/positions", positionsRouter(deps.positionRepo, deps.portfolioRepo));
   app.use("/api/funds", fundsRouter(deps.fundService));
 
   app.use((_req, res) => {

@@ -1,6 +1,6 @@
 import { createApp } from "./app.ts";
 import { config } from "./config.ts";
-import { createFundCacheRepo, createPositionRepo, getDb } from "./db.ts";
+import { createFundCacheRepo, createPortfolioRepo, createPositionRepo, getDb } from "./db.ts";
 import { createFundFactsProvider } from "./holdings/fundfacts.ts";
 import { FundService } from "./holdings/service.ts";
 import { createSnapshotProvider } from "./holdings/snapshot.ts";
@@ -21,6 +21,7 @@ const fundService = new FundService({
 const fundDataMode = config.fundFactsApiKey ? "api-key" : "demo";
 
 const app = createApp({
+  portfolioRepo: createPortfolioRepo(db),
   positionRepo: createPositionRepo(db),
   fundService,
   fundDataMode,

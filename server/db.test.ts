@@ -3,7 +3,13 @@ import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { beforeEach, describe, expect, it } from "vitest";
-import { createDb, createFundCacheRepo, createPositionRepo, type Db } from "./db.ts";
+import {
+  createDb,
+  createFundCacheRepo,
+  createPortfolioRepo,
+  createPositionRepo,
+  type Db,
+} from "./db.ts";
 
 describe("position repo", () => {
   let db: Db;
@@ -66,6 +72,52 @@ describe("position repo", () => {
     expect(repo.remove(created.id)).toBe(false);
     expect(repo.list()).toHaveLength(0);
   });
+
+  it("attaches new positions to the default portfolio", () => {
+    const portfolio = createPortfolioRepo(db).default();
+    const created = repo.create({ kind: "cash", isin: "", name: "", amount: 100 });
+
+    expect(created.portfolioId).toBe(portfolio.id);
+    expect(repo.list(portfolio.id)).toHaveLength(1);
+    expect(repo.list("other")).toHaveLength(0);
+  });
+
+  it("finds an ETF by ISIN within a portfolio", () => {
+    const portfolio = createPortfolioRepo(db).default();
+    const created = repo.create({
+      kind: "etf",
+      isin: "IE00B4L5Y983",
+      name: "World",
+      amount: 100,
+    });
+
+    expect(repo.findByIsin(portfolio.id, "IE00B4L5Y983")?.id).toBe(created.id);
+    expect(repo.findByIsin(portfolio.id, "IE00B5BMR087")).toBeNull();
+  });
+});
+
+describe("portfolio repo", () => {
+  it("seeds an unnamed default portfolio on a fresh database", () => {
+    const db = createDb(":memory:");
+    const repo = createPortfolioRepo(db);
+
+    const list = repo.list();
+    expect(list).toHaveLength(1);
+    expect(list[0]?.name).toBe("");
+    expect(repo.default().id).toBe(list[0]?.id);
+  });
+
+  it("creates and renames portfolios, trimming names", () => {
+    const db = createDb(":memory:");
+    const repo = createPortfolioRepo(db);
+    const created = repo.create(" Retirement ");
+    expect(created.name).toBe("Retirement");
+    expect(repo.get(created.id)?.name).toBe("Retirement");
+
+    const renamed = repo.update(created.id, { name: " Pension " });
+    expect(renamed?.name).toBe("Pension");
+    expect(repo.update("nope", { name: "x" })).toBeNull();
+  });
 });
 
 describe("migrations", () => {
@@ -82,6 +134,8 @@ describe("migrations", () => {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
+      INSERT INTO positions (id, kind, isin, name, amount, created_at, updated_at)
+      VALUES ('p1', 'cash', '', '', 10, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
     `);
     legacy.close();
 
@@ -92,6 +146,13 @@ describe("migrations", () => {
       ).map((column) => column.name);
       expect(columns).toContain("bank");
       expect(columns).toContain("interest_rate");
+      expect(columns).toContain("portfolio_id");
+
+      const defaultPortfolio = createPortfolioRepo(db).default();
+      const stored = db.prepare("SELECT portfolio_id FROM positions WHERE id = 'p1'").get() as {
+        portfolio_id: string;
+      };
+      expect(stored.portfolio_id).toBe(defaultPortfolio.id);
     } finally {
       db.close();
       for (const suffix of ["", "-wal", "-shm"]) {

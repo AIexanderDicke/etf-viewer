@@ -2,9 +2,15 @@ import type { AddressInfo } from "node:net";
 import { once } from "node:events";
 import type { Server } from "node:http";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { FundInfo, Position } from "../shared/types.ts";
+import type { FundInfo, Portfolio, Position } from "../shared/types.ts";
 import { createApp } from "./app.ts";
-import { createDb, createFundCacheRepo, createPositionRepo, type Db } from "./db.ts";
+import {
+  createDb,
+  createFundCacheRepo,
+  createPortfolioRepo,
+  createPositionRepo,
+  type Db,
+} from "./db.ts";
 import { FundService } from "./holdings/service.ts";
 import type { HoldingsProvider } from "./holdings/types.ts";
 
@@ -34,6 +40,7 @@ describe("HTTP API", () => {
   beforeEach(async () => {
     db = createDb(":memory:");
     const app = createApp({
+      portfolioRepo: createPortfolioRepo(db),
       positionRepo: createPositionRepo(db),
       fundService: new FundService({ providers: [provider], cache: createFundCacheRepo(db) }),
       fundDataMode: "demo",
@@ -90,6 +97,89 @@ describe("HTTP API", () => {
     expect(missing.status).toBe(404);
   });
 
+  it("joins a repeated ETF ISIN by summing its amount", async () => {
+    const first = await json<Position>("/api/positions", {
+      method: "POST",
+      body: JSON.stringify({ kind: "etf", isin: ETF_ISIN, name: "World", amount: 1000 }),
+    });
+    expect(first.status).toBe(201);
+
+    const second = await json<Position>("/api/positions", {
+      method: "POST",
+      body: JSON.stringify({ kind: "etf", isin: ETF_ISIN, amount: 500 }),
+    });
+    expect(second.status).toBe(200);
+    expect(second.body.id).toBe(first.body.id);
+    expect(second.body.amount).toBe(1500);
+    expect(second.body.name).toBe("World");
+
+    const listed = await json<Position[]>("/api/positions");
+    expect(listed.body).toHaveLength(1);
+  });
+
+  it("lists, creates and renames portfolios", async () => {
+    const initial = await json<Portfolio[]>("/api/portfolios");
+    expect(initial.body).toHaveLength(1);
+
+    const created = await json<Portfolio>("/api/portfolios", {
+      method: "POST",
+      body: JSON.stringify({ name: "Retirement" }),
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.name).toBe("Retirement");
+
+    const unnamed = await json<Portfolio>("/api/portfolios", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    expect(unnamed.body.name).toBe("");
+
+    const renamed = await json<Portfolio>(`/api/portfolios/${created.body.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name: "Pension" }),
+    });
+    expect(renamed.status).toBe(200);
+    expect(renamed.body.name).toBe("Pension");
+
+    const missing = await json<{ error: string }>("/api/portfolios/nope", {
+      method: "PATCH",
+      body: JSON.stringify({ name: "x" }),
+    });
+    expect(missing.status).toBe(404);
+
+    const bad = await json<{ error: string }>(`/api/portfolios/${created.body.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({}),
+    });
+    expect(bad.status).toBe(400);
+  });
+
+  it("scopes positions to a portfolio and rejects unknown ones", async () => {
+    const [defaultPortfolio] = (await json<Portfolio[]>("/api/portfolios")).body;
+    const created = await json<Portfolio>("/api/portfolios", {
+      method: "POST",
+      body: JSON.stringify({ name: "Second" }),
+    });
+
+    await json<Position>("/api/positions", {
+      method: "POST",
+      body: JSON.stringify({ kind: "cash", amount: 100, portfolioId: created.body.id }),
+    });
+
+    const scoped = await json<Position[]>(`/api/positions?portfolioId=${created.body.id}`);
+    expect(scoped.body).toHaveLength(1);
+    expect(scoped.body[0]?.portfolioId).toBe(created.body.id);
+
+    const other = await json<Position[]>(`/api/positions?portfolioId=${defaultPortfolio?.id}`);
+    expect(other.body).toHaveLength(0);
+
+    const unknown = await json<{ error: string }>("/api/positions", {
+      method: "POST",
+      body: JSON.stringify({ kind: "cash", amount: 100, portfolioId: "does-not-exist" }),
+    });
+    expect(unknown.status).toBe(400);
+  });
+
   it("stores and later clears a cash interest rate", async () => {
     const created = await json<Position>("/api/positions", {
       method: "POST",
@@ -135,6 +225,20 @@ describe("HTTP API", () => {
     });
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "invalid request" });
+  });
+
+  it("rejects an invalid position patch with 400", async () => {
+    const created = await json<Position>("/api/positions", {
+      method: "POST",
+      body: JSON.stringify({ kind: "cash", amount: 100 }),
+    });
+
+    const { status, body } = await json<{ error: string }>(`/api/positions/${created.body.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ amount: 0 }),
+    });
+    expect(status).toBe(400);
+    expect(body.error).toBeTruthy();
   });
 
   it("returns 404 when patching a missing position", async () => {

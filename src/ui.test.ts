@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { FundInfo, Position, PositionInput } from "../shared/types.ts";
+import type { FundInfo, Portfolio, Position, PositionInput } from "../shared/types.ts";
 
 const apiMock = vi.hoisted(() => ({
+  listPortfolios: vi.fn(),
+  createPortfolio: vi.fn(),
+  renamePortfolio: vi.fn(),
   listPositions: vi.fn(),
   addPosition: vi.fn(),
   updatePosition: vi.fn(),
@@ -23,9 +26,19 @@ vi.mock("./chart.ts", () => ({
 const WORLD = "IE00B4L5Y983";
 const EM = "IE00BKM4GZ66";
 
+function portfolio(id: string, name = ""): Portfolio {
+  return {
+    id,
+    name,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+}
+
 function position(overrides: Partial<Position>): Position {
   return {
     id: overrides.id ?? "p1",
+    portfolioId: overrides.portfolioId ?? "portfolio-1",
     kind: overrides.kind ?? "cash",
     isin: overrides.isin ?? "",
     name: overrides.name ?? "",
@@ -93,8 +106,11 @@ describe("mountApp", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    window.localStorage.clear();
     document.body.innerHTML = '<div id="app"></div>';
     window.confirm = vi.fn(() => true);
+    window.prompt = vi.fn(() => null);
+    apiMock.listPortfolios.mockResolvedValue([portfolio("portfolio-1")]);
     apiMock.listPositions.mockResolvedValue([]);
     apiMock.addPosition.mockResolvedValue(position({}));
     apiMock.updatePosition.mockResolvedValue(position({}));
@@ -135,6 +151,53 @@ describe("mountApp", () => {
     clickTab("portfolio");
     expect(byId("view-portfolio").hidden).toBe(false);
     expect(byId("view-lookthrough").hidden).toBe(true);
+  });
+
+  it("renders the portfolio picker and switches portfolios", async () => {
+    apiMock.listPortfolios.mockResolvedValue([
+      portfolio("portfolio-1", "Core"),
+      portfolio("portfolio-2"),
+    ]);
+    await mount();
+
+    const select = byId("portfolio-select") as HTMLSelectElement;
+    expect(select.options).toHaveLength(2);
+    expect(select.options[0]?.textContent).toBe("Core");
+    expect(select.options[1]?.textContent).toBe("Unnamed portfolio");
+    expect(select.value).toBe("portfolio-1");
+
+    select.value = "portfolio-2";
+    select.dispatchEvent(new Event("change"));
+    await flush();
+
+    expect(apiMock.listPositions).toHaveBeenCalledWith("portfolio-2");
+  });
+
+  it("names the current portfolio and starts a new one", async () => {
+    apiMock.renamePortfolio.mockResolvedValue(portfolio("portfolio-1", "Retirement"));
+    apiMock.createPortfolio.mockResolvedValue(portfolio("portfolio-2"));
+    await mount();
+
+    window.prompt = vi.fn(() => "Retirement");
+    byId("new-portfolio").click();
+    await flush();
+    await flush();
+
+    expect(apiMock.renamePortfolio).toHaveBeenCalledWith("portfolio-1", "Retirement");
+    expect(apiMock.createPortfolio).toHaveBeenCalledWith("");
+    expect(apiMock.listPositions).toHaveBeenCalledWith("portfolio-2");
+    expect((byId("portfolio-select") as HTMLSelectElement).value).toBe("portfolio-2");
+  });
+
+  it("does not start a new portfolio when the prompt is cancelled", async () => {
+    await mount();
+
+    window.prompt = vi.fn(() => null);
+    byId("new-portfolio").click();
+    await flush();
+
+    expect(apiMock.createPortfolio).not.toHaveBeenCalled();
+    expect(apiMock.renamePortfolio).not.toHaveBeenCalled();
   });
 
   it("renders positions, legend metadata and removes one", async () => {
@@ -207,6 +270,42 @@ describe("mountApp", () => {
     expect(byId("cancel-edit").hidden).toBe(true);
   });
 
+  it("edits an ETF position", async () => {
+    apiMock.listPositions.mockResolvedValue([
+      position({ id: "etf-1", kind: "etf", isin: WORLD, amount: 6000, name: "World" }),
+    ]);
+    await mount();
+
+    document.querySelector<HTMLButtonElement>('button[data-action="edit"]')?.click();
+    expect(input("isin").value).toBe(WORLD);
+    expect(byId("form-title").textContent).toBe("Edit position");
+
+    input("amount").value = "7000";
+    submitForm();
+    await flush();
+
+    expect(apiMock.updatePosition).toHaveBeenCalledWith("etf-1", {
+      kind: "etf",
+      isin: WORLD,
+      name: "iShares Core MSCI World UCITS ETF",
+      bank: "",
+      interestRate: null,
+      amount: 7000,
+    });
+  });
+
+  it("surfaces a save failure", async () => {
+    await mount();
+    apiMock.addPosition.mockRejectedValue(new Error("nope"));
+
+    input("amount").value = "1000";
+    input("isin").value = WORLD;
+    submitForm();
+    await flush();
+
+    expect(byId("form-error").textContent).toContain("nope");
+  });
+
   it("cancels editing without saving", async () => {
     apiMock.listPositions.mockResolvedValue([
       position({ id: "cash-1", kind: "cash", amount: 2000, bank: "ING" }),
@@ -255,7 +354,7 @@ describe("mountApp", () => {
       interestRate: undefined,
       amount: 1000,
     };
-    expect(apiMock.addPosition).toHaveBeenCalledWith(expected);
+    expect(apiMock.addPosition).toHaveBeenCalledWith(expected, "portfolio-1");
   });
 
   it("adds a cash position with bank and interest rate", async () => {
@@ -270,14 +369,17 @@ describe("mountApp", () => {
     submitForm();
     await flush();
 
-    expect(apiMock.addPosition).toHaveBeenCalledWith({
-      kind: "cash",
-      isin: "",
-      name: "",
-      bank: "Deutsche Bank",
-      interestRate: 2.5,
-      amount: 5000,
-    });
+    expect(apiMock.addPosition).toHaveBeenCalledWith(
+      {
+        kind: "cash",
+        isin: "",
+        name: "",
+        bank: "Deutsche Bank",
+        interestRate: 2.5,
+        amount: 5000,
+      },
+      "portfolio-1",
+    );
   });
 
   it("validates the amount, ISIN and interest rate", async () => {

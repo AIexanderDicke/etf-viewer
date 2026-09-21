@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { isValidIsin, normalizeIsin } from "../../shared/isin.ts";
 import type { AssetKind, PositionInput } from "../../shared/types.ts";
-import type { PositionRepo } from "../db.ts";
+import type { PortfolioRepo, PositionRepo } from "../db.ts";
 
 interface ValidInput {
   kind: AssetKind;
@@ -48,11 +48,21 @@ function parseInput(body: unknown): ParseResult {
   return { value: { kind, isin: "", name: "", bank, interestRate, amount } };
 }
 
-export function positionsRouter(repo: PositionRepo): Router {
+function readPortfolioId(body: unknown): string | undefined {
+  if (typeof body !== "object" || body === null) return undefined;
+  const id = (body as { portfolioId?: unknown }).portfolioId;
+  return typeof id === "string" && id ? id : undefined;
+}
+
+export function positionsRouter(repo: PositionRepo, portfolios: PortfolioRepo): Router {
   const router = Router();
 
-  router.get("/", (_req, res) => {
-    res.json(repo.list());
+  router.get("/", (req, res) => {
+    const portfolioId =
+      typeof req.query.portfolioId === "string" && req.query.portfolioId
+        ? req.query.portfolioId
+        : undefined;
+    res.json(repo.list(portfolioId));
   });
 
   router.post("/", (req, res) => {
@@ -61,7 +71,30 @@ export function positionsRouter(repo: PositionRepo): Router {
       res.status(400).json({ error: parsed.error });
       return;
     }
-    res.status(201).json(repo.create(parsed.value!));
+
+    const portfolioId = readPortfolioId(req.body) ?? portfolios.default().id;
+    if (!portfolios.get(portfolioId)) {
+      res.status(400).json({ error: "unknown portfolio" });
+      return;
+    }
+
+    const value = parsed.value!;
+    // A fund added twice is joined into a single position: the same ISIN
+    // inside one portfolio is always one row with a summed amount.
+    if (value.kind === "etf") {
+      const existing = repo.findByIsin(portfolioId, value.isin);
+      if (existing) {
+        res.status(200).json(
+          repo.update(existing.id, {
+            amount: existing.amount + value.amount,
+            name: existing.name || value.name,
+          }),
+        );
+        return;
+      }
+    }
+
+    res.status(201).json(repo.create(value, portfolioId));
   });
 
   router.patch("/:id", (req, res) => {

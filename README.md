@@ -11,6 +11,8 @@ stocks, sectors and countries.
 - Look-through exposure: individual stocks aggregated across all ETFs, plus sector / country
   topic charts.
 - Cash positions with a bank and optional interest rate.
+- Multiple named portfolios: name the current one and start a new one, then switch between them
+  from the picker in the header. Adding the same ISIN twice joins it into one position.
 - Positions persisted server-side in SQLite; the browser only talks to same-origin `/api`.
 
 ## Architecture
@@ -74,14 +76,22 @@ silently misbehaving.
 
 ## HTTP API
 
-| Method | Path                 | Purpose                       |
-| ------ | -------------------- | ----------------------------- |
-| GET    | `/api/health`        | Liveness + fund-data mode.    |
-| GET    | `/api/positions`     | List positions.               |
-| POST   | `/api/positions`     | Create a position.            |
-| PATCH  | `/api/positions/:id` | Update a position.            |
-| DELETE | `/api/positions/:id` | Delete a position.            |
-| GET    | `/api/funds/:isin`   | Fund metadata + top holdings. |
+| Method | Path                  | Purpose                       |
+| ------ | --------------------- | ----------------------------- |
+| GET    | `/api/health`         | Liveness + fund-data mode.    |
+| GET    | `/api/portfolios`     | List portfolios.              |
+| POST   | `/api/portfolios`     | Create a portfolio.           |
+| PATCH  | `/api/portfolios/:id` | Rename a portfolio.           |
+| GET    | `/api/positions`      | List positions.               |
+| POST   | `/api/positions`      | Create (or join) a position.  |
+| PATCH  | `/api/positions/:id`  | Update a position.            |
+| DELETE | `/api/positions/:id`  | Delete a position.            |
+| GET    | `/api/funds/:isin`    | Fund metadata + top holdings. |
+
+Every `Position` belongs to a `Portfolio` via `portfolioId`. `GET /api/positions` accepts an
+optional `?portfolioId=` filter and `POST /api/positions` takes a `portfolioId` in the body
+(defaulting to the seeded portfolio). Posting an ETF ISIN that already exists in the portfolio
+sums the amount into the existing row instead of creating a duplicate.
 
 A `Position` has a `kind` (`etf` or `cash`), an `isin` (ETFs), a `name`, a `bank` and
 `interestRate` (cash), and an `amount` in EUR. `PATCH` accepts partial bodies; sending

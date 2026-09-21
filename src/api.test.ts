@@ -13,6 +13,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 const position: Position = {
   id: "p1",
+  portfolioId: "portfolio-1",
   kind: "cash",
   isin: "",
   name: "",
@@ -32,25 +33,56 @@ describe("api client", () => {
     vi.unstubAllGlobals();
   });
 
-  it("lists positions", async () => {
-    fetchMock.mockResolvedValue(jsonResponse([position]));
+  it("lists positions, optionally scoped to a portfolio", async () => {
+    fetchMock.mockImplementation(() => jsonResponse([position]));
 
     await expect(api.listPositions()).resolves.toEqual([position]);
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/positions",
       expect.objectContaining({ headers: { "Content-Type": "application/json" } }),
     );
+
+    await api.listPositions("portfolio-1");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/positions?portfolioId=portfolio-1",
+      expect.anything(),
+    );
+  });
+
+  it("lists, creates and renames portfolios", async () => {
+    const portfolio = {
+      id: "portfolio-1",
+      name: "Retirement",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    fetchMock.mockImplementation(() => jsonResponse([portfolio]));
+
+    await expect(api.listPortfolios()).resolves.toEqual([portfolio]);
+    expect(fetchMock).toHaveBeenCalledWith("/api/portfolios", expect.anything());
+
+    await api.createPortfolio("Retirement");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/portfolios",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "Retirement" }) }),
+    );
+
+    await api.renamePortfolio("portfolio-1", "Pension");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/portfolios/portfolio-1",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ name: "Pension" }) }),
+    );
   });
 
   it("sends create and update payloads", async () => {
     fetchMock.mockImplementation(() => jsonResponse(position));
 
-    await api.addPosition({ kind: "cash", amount: 100 });
+    await api.addPosition({ kind: "cash", amount: 100 }, "portfolio-1");
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/positions",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ kind: "cash", amount: 100 }),
+        body: JSON.stringify({ kind: "cash", amount: 100, portfolioId: "portfolio-1" }),
       }),
     );
 
@@ -77,7 +109,7 @@ describe("api client", () => {
   it("surfaces the server's error message", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ error: "amount must be > 0" }, 400));
 
-    await expect(api.addPosition({ kind: "cash", amount: 0 })).rejects.toThrow(
+    await expect(api.addPosition({ kind: "cash", amount: 0 }, "portfolio-1")).rejects.toThrow(
       "amount must be > 0",
     );
   });

@@ -29,6 +29,13 @@ const TEMPLATE = `
         <p class="subtitle">Track your portfolio by ISIN</p>
       </div>
     </div>
+    <div class="portfolio-controls">
+      <label class="portfolio-picker">
+        <span class="portfolio-picker-label">Portfolio</span>
+        <select id="portfolio-select" aria-label="Select portfolio"></select>
+      </label>
+      <button type="button" class="ghost" id="new-portfolio">Name &amp; start new</button>
+    </div>
   </header>
 
   <p class="status" id="app-status" role="alert" hidden></p>
@@ -156,6 +163,9 @@ export function mountApp(root: HTMLElement): void {
   const positionsMeta = get<HTMLSpanElement>("positions-meta");
   const statusEl = get<HTMLParagraphElement>("app-status");
   const tabsEl = get<HTMLElement>("tabs");
+  const portfolioSelect = get<HTMLSelectElement>("portfolio-select");
+  const newPortfolioButton = get<HTMLButtonElement>("new-portfolio");
+  let portfolioSignature = "";
 
   const isinField = document.querySelector<HTMLDivElement>(".field-isin")!;
   const cashFields = document.querySelectorAll<HTMLDivElement>(".field-cash");
@@ -177,6 +187,55 @@ export function mountApp(root: HTMLElement): void {
     render();
     if (tab === "lookthrough") lookThroughView.resize();
     else if (tab === "portfolio") chart.resize();
+  }
+
+  portfolioSelect.addEventListener("change", () => {
+    const id = portfolioSelect.value;
+    if (!id || id === store.getState().activePortfolioId) return;
+    resetForm();
+    void store.setActivePortfolio(id).catch((error) => {
+      errorEl.textContent = error instanceof Error ? error.message : "Could not switch portfolio.";
+    });
+  });
+
+  newPortfolioButton.addEventListener("click", () => {
+    void startNewPortfolio();
+  });
+
+  function renderPortfolios(state: store.StoreState): void {
+    const signature = `${state.portfolios
+      .map((portfolio) => `${portfolio.id}:${portfolio.name}`)
+      .join("|")}#${state.activePortfolioId}`;
+    if (signature === portfolioSignature) return;
+    portfolioSignature = signature;
+    portfolioSelect.replaceChildren(
+      ...state.portfolios.map((portfolio) => {
+        const option = document.createElement("option");
+        option.value = portfolio.id;
+        option.textContent = portfolio.name || "Unnamed portfolio";
+        return option;
+      }),
+    );
+    if (state.activePortfolioId) portfolioSelect.value = state.activePortfolioId;
+    portfolioSelect.disabled = state.portfolios.length === 0;
+  }
+
+  async function startNewPortfolio(): Promise<void> {
+    const state = store.getState();
+    const current = state.portfolios.find((entry) => entry.id === state.activePortfolioId);
+    const answer = window.prompt("Name this portfolio", current?.name ?? "");
+    if (answer === null) return;
+    const name = answer.trim();
+    newPortfolioButton.disabled = true;
+    try {
+      if (name && current) await store.renamePortfolio(current.id, name);
+      await store.createPortfolio("");
+      resetForm();
+    } catch (error) {
+      errorEl.textContent = error instanceof Error ? error.message : "Could not create portfolio.";
+    } finally {
+      newPortfolioButton.disabled = false;
+    }
   }
 
   function setIsinHint(
@@ -382,6 +441,7 @@ export function mountApp(root: HTMLElement): void {
 
   function render(): void {
     const state = store.getState();
+    renderPortfolios(state);
 
     if (state.status === "error") {
       statusEl.hidden = false;

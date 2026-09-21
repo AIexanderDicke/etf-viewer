@@ -1,7 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Position, PositionInput } from "../shared/types.ts";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Portfolio, Position, PositionInput } from "../shared/types.ts";
 
 const apiMock = vi.hoisted(() => ({
+  listPortfolios: vi.fn(),
+  createPortfolio: vi.fn(),
+  renamePortfolio: vi.fn(),
   listPositions: vi.fn(),
   addPosition: vi.fn(),
   updatePosition: vi.fn(),
@@ -11,9 +14,19 @@ const apiMock = vi.hoisted(() => ({
 
 vi.mock("./api.ts", () => ({ api: apiMock }));
 
-function position(id: string, amount: number): Position {
+function portfolio(id: string, name = ""): Portfolio {
   return {
     id,
+    name,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+}
+
+function position(id: string, amount: number, portfolioId = "portfolio-1"): Position {
+  return {
+    id,
+    portfolioId,
     kind: "cash",
     isin: "",
     name: "",
@@ -32,23 +45,33 @@ async function freshStore() {
 describe("store", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    apiMock.listPortfolios.mockResolvedValue([portfolio("portfolio-1")]);
+    apiMock.listPositions.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("notifies subscribers until they unsubscribe", async () => {
     const store = await freshStore();
     const listener = vi.fn();
     const unsubscribe = store.subscribe(listener);
-    expect(listener).toHaveBeenCalledWith({ status: "loading", positions: [] });
+    expect(listener).toHaveBeenCalledWith({
+      status: "loading",
+      portfolios: [],
+      activePortfolioId: null,
+      positions: [],
+    });
 
     unsubscribe();
     listener.mockClear();
-    apiMock.listPositions.mockResolvedValue([]);
     await store.init();
 
     expect(listener).not.toHaveBeenCalled();
   });
 
-  it("loads positions and settles into ready", async () => {
+  it("loads portfolios and the active portfolio's positions", async () => {
     const store = await freshStore();
     apiMock.listPositions.mockResolvedValue([position("p1", 100)]);
     const states: string[] = [];
@@ -56,15 +79,57 @@ describe("store", () => {
 
     await store.init();
 
-    expect(apiMock.listPositions).toHaveBeenCalledOnce();
-    expect(store.getState()).toMatchObject({ status: "ready", error: undefined });
+    expect(apiMock.listPositions).toHaveBeenCalledWith("portfolio-1");
+    expect(store.getState()).toMatchObject({
+      status: "ready",
+      activePortfolioId: "portfolio-1",
+      portfolios: [portfolio("portfolio-1")],
+      positions: [position("p1", 100)],
+      error: undefined,
+    });
     expect(states).toContain("loading");
     expect(states.at(-1)).toBe("ready");
   });
 
+  it("remembers the selected portfolio", async () => {
+    const remembered = new Map([["etf-viewer:active-portfolio", "portfolio-2"]]);
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => remembered.get(key) ?? null,
+      setItem: (key: string, value: string) => remembered.set(key, value),
+      removeItem: (key: string) => remembered.delete(key),
+    });
+    const store = await freshStore();
+    apiMock.listPortfolios.mockResolvedValue([portfolio("portfolio-1"), portfolio("portfolio-2")]);
+
+    await store.init();
+
+    expect(store.getState().activePortfolioId).toBe("portfolio-2");
+    expect(apiMock.listPositions).toHaveBeenCalledWith("portfolio-2");
+  });
+
+  it("survives unavailable storage", async () => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => {
+        throw new Error("blocked");
+      },
+      setItem: () => {
+        throw new Error("blocked");
+      },
+      removeItem: () => {
+        throw new Error("blocked");
+      },
+    });
+    const store = await freshStore();
+
+    await store.init();
+    await store.setActivePortfolio("portfolio-2");
+
+    expect(store.getState().status).toBe("ready");
+  });
+
   it("reports a backend failure", async () => {
     const store = await freshStore();
-    apiMock.listPositions.mockRejectedValue(new Error("boom"));
+    apiMock.listPortfolios.mockRejectedValue(new Error("boom"));
 
     await store.init();
 
@@ -73,33 +138,92 @@ describe("store", () => {
 
   it("reports a non-Error rejection with a fallback message", async () => {
     const store = await freshStore();
-    apiMock.listPositions.mockRejectedValue("nope");
+    apiMock.listPortfolios.mockRejectedValue("nope");
 
     await store.init();
 
     expect(store.getState().error).toBe("Unexpected error");
   });
 
-  it("creates a position then refreshes", async () => {
+  it("creates a position in the active portfolio then refreshes", async () => {
     const store = await freshStore();
+    await store.init();
+    const input: PositionInput = { kind: "cash", amount: 200 };
     apiMock.addPosition.mockResolvedValue(position("p2", 200));
     apiMock.listPositions.mockResolvedValue([position("p2", 200)]);
-    const input: PositionInput = { kind: "cash", amount: 200 };
 
     await store.addPosition(input);
 
-    expect(apiMock.addPosition).toHaveBeenCalledWith(input);
+    expect(apiMock.addPosition).toHaveBeenCalledWith(input, "portfolio-1");
     expect(store.getState().positions).toEqual([position("p2", 200)]);
+  });
+
+  it("refuses to add without an active portfolio", async () => {
+    const store = await freshStore();
+    apiMock.listPortfolios.mockResolvedValue([]);
+    await store.init();
+
+    await expect(store.addPosition({ kind: "cash", amount: 1 })).rejects.toThrow(
+      "No active portfolio",
+    );
   });
 
   it("removes a position then refreshes", async () => {
     const store = await freshStore();
-    apiMock.removePosition.mockResolvedValue(undefined);
-    apiMock.listPositions.mockResolvedValue([]);
+    await store.init();
 
     await store.removePosition("p1");
 
     expect(apiMock.removePosition).toHaveBeenCalledWith("p1");
     expect(store.getState().positions).toEqual([]);
+  });
+
+  it("switches the active portfolio", async () => {
+    const store = await freshStore();
+    apiMock.listPortfolios.mockResolvedValue([portfolio("portfolio-1"), portfolio("portfolio-2")]);
+    await store.init();
+    apiMock.listPositions.mockResolvedValue([position("p9", 50, "portfolio-2")]);
+
+    await store.setActivePortfolio("portfolio-2");
+
+    expect(apiMock.listPositions).toHaveBeenCalledWith("portfolio-2");
+    expect(store.getState().activePortfolioId).toBe("portfolio-2");
+    expect(store.getState().positions).toEqual([position("p9", 50, "portfolio-2")]);
+  });
+
+  it("reports a failure while switching portfolios", async () => {
+    const store = await freshStore();
+    apiMock.listPortfolios.mockResolvedValue([portfolio("portfolio-1"), portfolio("portfolio-2")]);
+    await store.init();
+    apiMock.listPositions.mockRejectedValue(new Error("down"));
+
+    await store.setActivePortfolio("portfolio-2");
+
+    expect(store.getState()).toMatchObject({ status: "error", error: "down" });
+  });
+
+  it("creates a portfolio and switches to it", async () => {
+    const store = await freshStore();
+    await store.init();
+    apiMock.createPortfolio.mockResolvedValue(portfolio("portfolio-3"));
+
+    const created = await store.createPortfolio("New");
+
+    expect(apiMock.createPortfolio).toHaveBeenCalledWith("New");
+    expect(store.getState().portfolios).toContainEqual(portfolio("portfolio-3"));
+    expect(store.getState().activePortfolioId).toBe("portfolio-3");
+    expect(created.id).toBe("portfolio-3");
+  });
+
+  it("renames a portfolio in place", async () => {
+    const store = await freshStore();
+    apiMock.listPortfolios.mockResolvedValue([portfolio("portfolio-1", "Old")]);
+    await store.init();
+    apiMock.renamePortfolio.mockResolvedValue(portfolio("portfolio-1", "New"));
+
+    await store.renamePortfolio("portfolio-1", "New");
+
+    expect(apiMock.renamePortfolio).toHaveBeenCalledWith("portfolio-1", "New");
+    expect(store.getState().portfolios).toEqual([portfolio("portfolio-1", "New")]);
   });
 });

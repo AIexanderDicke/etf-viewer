@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
-import type { AssetKind, FundInfo, Position, PositionInput } from "../shared/types.ts";
+import type { AssetKind, FundInfo, Portfolio, Position, PositionInput } from "../shared/types.ts";
 import { config } from "./config.ts";
 
 export type Db = Database.Database;
@@ -17,6 +17,13 @@ export function createDb(file: string): Db {
 
 function migrate(db: Db): void {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS portfolios (
+      id         TEXT PRIMARY KEY,
+      name       TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS positions (
       id         TEXT PRIMARY KEY,
       kind       TEXT NOT NULL CHECK (kind IN ('etf', 'cash')),
@@ -41,12 +48,113 @@ function migrate(db: Db): void {
   // added explicitly.
   addColumn(db, "positions", "bank", "TEXT NOT NULL DEFAULT ''");
   addColumn(db, "positions", "interest_rate", "REAL");
+
+  // Portfolios were added later; existing positions are attached to the
+  // seeded default portfolio so no data is orphaned.
+  addColumn(db, "positions", "portfolio_id", "TEXT NOT NULL DEFAULT ''");
+  const fallback = ensureDefaultPortfolio(db);
+  db.prepare("UPDATE positions SET portfolio_id = ? WHERE portfolio_id = ''").run(fallback.id);
 }
 
 function addColumn(db: Db, table: string, column: string, definition: string): void {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
   if (columns.some((entry) => entry.name === column)) return;
   db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
+interface PortfolioRow {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+function toPortfolio(row: PortfolioRow): Portfolio {
+  return {
+    id: row.id,
+    name: row.name,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/** Returns the oldest portfolio, creating an unnamed one when none exists. */
+export function ensureDefaultPortfolio(db: Db): Portfolio {
+  const row = db.prepare("SELECT * FROM portfolios ORDER BY created_at ASC LIMIT 1").get() as
+    PortfolioRow | undefined;
+  if (row) return toPortfolio(row);
+
+  const now = new Date().toISOString();
+  const portfolio: Portfolio = {
+    id: crypto.randomUUID(),
+    name: "",
+    createdAt: now,
+    updatedAt: now,
+  };
+  db.prepare(
+    `INSERT INTO portfolios (id, name, created_at, updated_at)
+     VALUES (@id, @name, @createdAt, @updatedAt)`,
+  ).run(portfolio);
+  return portfolio;
+}
+
+export interface PortfolioRepo {
+  list(): Portfolio[];
+  get(id: string): Portfolio | null;
+  create(name?: string): Portfolio;
+  update(id: string, patch: { name: string }): Portfolio | null;
+  /** The default portfolio (oldest, seeded on demand). */
+  default(): Portfolio;
+}
+
+export function createPortfolioRepo(db: Db): PortfolioRepo {
+  return {
+    list() {
+      const rows = db
+        .prepare("SELECT * FROM portfolios ORDER BY created_at ASC")
+        .all() as PortfolioRow[];
+      return rows.map(toPortfolio);
+    },
+
+    get(id) {
+      const row = db.prepare("SELECT * FROM portfolios WHERE id = ?").get(id) as
+        PortfolioRow | undefined;
+      return row ? toPortfolio(row) : null;
+    },
+
+    create(name = "") {
+      const now = new Date().toISOString();
+      const portfolio: Portfolio = {
+        id: crypto.randomUUID(),
+        name: name.trim(),
+        createdAt: now,
+        updatedAt: now,
+      };
+      db.prepare(
+        `INSERT INTO portfolios (id, name, created_at, updated_at)
+         VALUES (@id, @name, @createdAt, @updatedAt)`,
+      ).run(portfolio);
+      return portfolio;
+    },
+
+    update(id, patch) {
+      const existing = this.get(id);
+      if (!existing) return null;
+      const next: Portfolio = {
+        ...existing,
+        name: patch.name.trim(),
+        updatedAt: new Date().toISOString(),
+      };
+      db.prepare("UPDATE portfolios SET name = @name, updated_at = @updatedAt WHERE id = @id").run(
+        next,
+      );
+      return next;
+    },
+
+    default() {
+      return ensureDefaultPortfolio(db);
+    },
+  };
 }
 
 let defaultDb: Db | undefined;
@@ -58,6 +166,7 @@ export function getDb(): Db {
 
 interface PositionRow {
   id: string;
+  portfolio_id: string;
   kind: AssetKind;
   isin: string;
   name: string;
@@ -71,6 +180,7 @@ interface PositionRow {
 function toPosition(row: PositionRow): Position {
   return {
     id: row.id,
+    portfolioId: row.portfolio_id ?? "",
     kind: row.kind,
     isin: row.isin,
     name: row.name,
@@ -82,20 +192,32 @@ function toPosition(row: PositionRow): Position {
   };
 }
 
+/** The portfolio a position without an explicit one should attach to. */
+function defaultPortfolioId(db: Db): string {
+  return ensureDefaultPortfolio(db).id;
+}
+
 export interface PositionRepo {
-  list(): Position[];
+  /** Lists positions, optionally limited to a single portfolio. */
+  list(portfolioId?: string): Position[];
   get(id: string): Position | null;
-  create(input: PositionInput): Position;
+  /** First ETF position with this ISIN inside the portfolio, if any. */
+  findByIsin(portfolioId: string, isin: string): Position | null;
+  create(input: PositionInput, portfolioId?: string): Position;
   update(id: string, patch: Partial<PositionInput>): Position | null;
   remove(id: string): boolean;
 }
 
 export function createPositionRepo(db: Db): PositionRepo {
   return {
-    list() {
-      const rows = db
-        .prepare("SELECT * FROM positions ORDER BY created_at ASC")
-        .all() as PositionRow[];
+    list(portfolioId) {
+      const rows = (
+        portfolioId
+          ? db
+              .prepare("SELECT * FROM positions WHERE portfolio_id = ? ORDER BY created_at ASC")
+              .all(portfolioId)
+          : db.prepare("SELECT * FROM positions ORDER BY created_at ASC").all()
+      ) as PositionRow[];
       return rows.map(toPosition);
     },
 
@@ -105,10 +227,22 @@ export function createPositionRepo(db: Db): PositionRepo {
       return row ? toPosition(row) : null;
     },
 
-    create(input) {
+    findByIsin(portfolioId, isin) {
+      const row = db
+        .prepare(
+          `SELECT * FROM positions
+           WHERE portfolio_id = ? AND kind = 'etf' AND isin = ?
+           ORDER BY created_at ASC LIMIT 1`,
+        )
+        .get(portfolioId, isin) as PositionRow | undefined;
+      return row ? toPosition(row) : null;
+    },
+
+    create(input, portfolioId) {
       const now = new Date().toISOString();
       const position: Position = {
         id: crypto.randomUUID(),
+        portfolioId: portfolioId ?? defaultPortfolioId(db),
         kind: input.kind,
         isin: input.isin ?? "",
         name: input.name ?? "",
@@ -119,8 +253,8 @@ export function createPositionRepo(db: Db): PositionRepo {
         updatedAt: now,
       };
       db.prepare(
-        `INSERT INTO positions (id, kind, isin, name, bank, interest_rate, amount, created_at, updated_at)
-         VALUES (@id, @kind, @isin, @name, @bank, @interestRate, @amount, @createdAt, @updatedAt)`,
+        `INSERT INTO positions (id, portfolio_id, kind, isin, name, bank, interest_rate, amount, created_at, updated_at)
+         VALUES (@id, @portfolioId, @kind, @isin, @name, @bank, @interestRate, @amount, @createdAt, @updatedAt)`,
       ).run({ ...position, interestRate: position.interestRate ?? null });
       return position;
     },

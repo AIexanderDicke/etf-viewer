@@ -44,7 +44,7 @@ server/            backend
   index.ts         bootstrap: db, providers, listen, graceful shutdown
   config.ts        env configuration (validated at startup)
   db.ts            SQLite schema + position/fund-cache repositories
-  routes/          positions + funds endpoints
+  routes/          portfolios + positions + funds endpoints
   holdings/        HoldingsProvider interface, FundFacts, snapshot, FundService
 src/               frontend
   main.ts          entry point, mounts the app
@@ -109,22 +109,33 @@ The SQLite file lives in `data/` and is gitignored.
 
 ## HTTP API
 
-| Method | Path                 | Purpose                      |
-| ------ | -------------------- | ---------------------------- |
-| GET    | `/api/health`        | liveness + fund-data mode    |
-| GET    | `/api/positions`     | list positions               |
-| POST   | `/api/positions`     | create position              |
-| PATCH  | `/api/positions/:id` | update position              |
-| DELETE | `/api/positions/:id` | delete position              |
-| GET    | `/api/funds/:isin`   | fund metadata + top holdings |
+| Method | Path                  | Purpose                      |
+| ------ | --------------------- | ---------------------------- |
+| GET    | `/api/health`         | liveness + fund-data mode    |
+| GET    | `/api/portfolios`     | list portfolios              |
+| POST   | `/api/portfolios`     | create portfolio             |
+| PATCH  | `/api/portfolios/:id` | rename portfolio             |
+| GET    | `/api/positions`      | list positions               |
+| POST   | `/api/positions`      | create / join position       |
+| PATCH  | `/api/positions/:id`  | update position              |
+| DELETE | `/api/positions/:id`  | delete position              |
+| GET    | `/api/funds/:isin`    | fund metadata + top holdings |
 
-A `Position` carries `kind`, `isin` (ETFs), `name`, `bank` and `interestRate`
-(cash only) and `amount`. Validation lives in `server/routes/positions.ts`:
-`kind ∈ {etf, cash}`, `amount > 0`, a structurally valid ISIN for ETFs, and a
-non-negative `interestRate` when present.
+A `Position` carries `portfolioId`, `kind`, `isin` (ETFs), `name`, `bank` and
+`interestRate` (cash only) and `amount`. Validation lives in
+`server/routes/positions.ts`: `kind ∈ {etf, cash}`, `amount > 0`, a structurally
+valid ISIN for ETFs, and a non-negative `interestRate` when present.
 
 ## Key design decisions & gotchas
 
+- **Portfolios** are the top-level container: every position has a
+  `portfolioId`. The backend seeds an unnamed default portfolio and attaches
+  pre-existing rows to it (`ensureDefaultPortfolio`). The header picker switches
+  portfolios and "Name & start new" renames the active one before creating an
+  empty one; the selection is remembered in `localStorage`.
+- **Duplicate ETF ISINs are joined** inside a portfolio: POSTing an ISIN that
+  already exists sums the amount into the existing row (one row per ISIN per
+  portfolio) instead of creating a second position. Cash positions stay separate.
 - **Data source is FundFacts** (ISIN-first, one schema for all fund houses).
   Without a key the backend uses its keyless demo endpoint. Never hard-code an
   issuer-specific source.
