@@ -1,17 +1,20 @@
 # AGENTS.md — etf-viewer
 
-Project context for agents working in this repo. 
+Project context for agents working in this repo.
 
 ## What this is
 
 A small web app where a user enters their **ETF positions by ISIN** plus one or
-more **cash** positions (values in EUR) and sees:
+more **cash** positions (value in EUR, plus a bank and optional interest rate)
+and sees:
 
 1. a doughnut chart of the allocation (ETF / cash shares of the total),
-2. each fund's metadata and holdings,
+2. each fund's metadata and top holdings,
 3. an **exposure** view: individual stocks and topics (sector / country)
    aggregated across all ETFs.
 
+The UI has three tabs — **Portfolio** (chart + legend), **Exposure**
+(`lookthrough.ts`) and **Positions** (add form + table; id `config` in code).
 Positions persist server-side. A backend proxies the fund-data API so the
 browser never calls a third-party origin and the API key stays on the server.
 
@@ -36,21 +39,27 @@ shared/            used by both sides
   isin.ts          ISIN validation
   portfolio.ts     isUsable / summarize (allocation math)
   exposure.ts      pure look-through aggregation
-src/               frontend
-  api.ts           fetch client for /api
-  store.ts         positions state (server-backed)
-  funds.ts         lazy fund-data lookup per ISIN
-  ui.ts            tab shell, form, position table, fund rows
-  lookthrough.ts   look-through view (stocks + topic charts)
-  calc.ts          re-exports shared portfolio helpers
-  chart.ts         Chart.js doughnut factory
 server/            backend
   index.ts         Express app
   config.ts        env configuration
   db.ts            SQLite schema + position/fund-cache repositories
   routes/          positions + funds endpoints
   holdings/        HoldingsProvider interface, FundFacts, snapshot, FundService
+src/               frontend
+  main.ts          entry point, mounts the app
+  api.ts           fetch client for /api
+  store.ts         positions state (server-backed)
+  funds.ts         lazy fund-data lookup per ISIN
+  ui.ts            tab shell, add-position form, position table, fund rows
+  lookthrough.ts   exposure view (stocks + topic charts)
+  calc.ts          re-exports shared portfolio/ISIN helpers
+  chart.ts         Chart.js doughnut factories
+  format.ts        euro / percent / integer formatters
+  style.css        theme
+index.html         Vite entry document
 ```
+
+Tests are colocated `*.test.ts` next to the source they cover.
 
 ## Scripts
 
@@ -60,8 +69,9 @@ npm run dev:server # backend only
 npm run dev:web    # frontend only
 npm run build      # typecheck + production frontend build (dist/)
 npm run start      # backend only (no watch)
-npm test           # vitest
-npm run typecheck  # frontend + backend TypeScript
+npm run preview    # serve the production build
+npm test           # vitest run
+npm run typecheck  # frontend (tsconfig) + backend (tsconfig.server) TypeScript
 ```
 
 Always run `npm run typecheck` and `npm test` before considering work done;
@@ -95,8 +105,10 @@ The SQLite file lives in `data/` and is gitignored.
 | DELETE | `/api/positions/:id` | delete position |
 | GET | `/api/funds/:isin` | fund metadata + top holdings |
 
-Validation lives in `server/routes/positions.ts`: `kind ∈ {etf, cash}`,
-`amount > 0`, and a structurally valid ISIN for ETFs.
+A `Position` carries `kind`, `isin` (ETFs), `name`, `bank` and `interestRate`
+(cash only) and `amount`. Validation lives in `server/routes/positions.ts`:
+`kind ∈ {etf, cash}`, `amount > 0`, a structurally valid ISIN for ETFs, and a
+non-negative `interestRate` when present.
 
 ## Key design decisions & gotchas
 
@@ -117,10 +129,11 @@ Validation lives in `server/routes/positions.ts`: `kind ∈ {etf, cash}`,
 - **Keep aggregation pure** in `shared/exposure.ts`. If it needs to move
   server-side later, it already can.
 - **Schema is created with `CREATE TABLE IF NOT EXISTS`**, with explicit
-  `ALTER TABLE` migrations for new columns. Changing a table means adding a real
-  migration.
-- **Tests**: `*.test.ts` colocated with source. `createDb(":memory:")` for repo
-  tests; inject a fake `fetch`/providers rather than hitting the network.
+  `ALTER TABLE` migrations for new columns (see `addColumn` in `db.ts`; `bank`
+  and `interest_rate` were both added this way). Changing a table means adding a
+  real migration — never rely on `CREATE TABLE` alone.
+- **Tests**: colocated `*.test.ts`. Use `createDb(":memory:")` for repo tests;
+  inject a fake `fetch`/providers rather than hitting the network.
 - Fund cache is keyed by ISIN; if you change the `FundInfo` shape, clear
   `data/` (or the `fund_cache` table) or old payloads will lack new fields.
 - Amounts are EUR; weights are percentages (0–100) everywhere.
@@ -129,5 +142,17 @@ Validation lives in `server/routes/positions.ts`: `kind ∈ {etf, cash}`,
 
 - Strict TypeScript; `noUnusedLocals`/`noUnusedParameters` are on.
 - ESM only (`"type": "module"`); relative imports use explicit `.ts` extensions.
-- No UI framework — vanilla DOM built with small helpers (`el`, `get`).
+- No UI framework — vanilla DOM built with small `el`/`get` helpers (each view
+  defines its own copies).
+- Format money and shares with `src/format.ts` (`euro`, `percent`, `integer`);
+  don't hand-roll `Intl` calls.
 - No comments unless they explain a non-obvious decision.
+
+## Git workflow (mandatory)
+
+- **Prefer many small commits** over one large one. Commit logical steps as you
+  go — each commit should build/pass on its own where feasible.
+- **Conventional Commits are mandatory.** Use the type prefix (with an optional
+  scope): `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`, `perf:`,
+  e.g. `feat(catalog): per-request language parameter`. No other commit-message
+  style.
