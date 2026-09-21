@@ -1,5 +1,5 @@
 import type { Position, PositionInput } from "../shared/types.ts";
-import { api } from "./api.ts";
+import { api, type PositionPatch } from "./api.ts";
 
 export interface StoreState {
   status: "loading" | "ready" | "error";
@@ -52,6 +52,11 @@ async function refresh(): Promise<void> {
 
 export async function addPosition(input: PositionInput): Promise<void> {
   await api.addPosition(input);
+  await refresh();
+}
+
+export async function updatePosition(id: string, patch: PositionPatch): Promise<void> {
+  await api.updatePosition(id, patch);
   await refresh();
 }
 

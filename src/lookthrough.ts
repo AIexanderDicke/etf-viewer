@@ -39,7 +39,7 @@ const TEMPLATE = `
   <section class="card">
     <h2>Topic exposure</h2>
     <div class="topic-switch" id="lt-topic-switch"></div>
-    <div class="chart-wrap"><canvas id="topic-chart"></canvas></div>
+    <div class="chart-wrap"><canvas id="topic-chart" role="img" aria-label="Topic exposure chart"></canvas></div>
     <ul class="topic-list" id="lt-topic-list"></ul>
     <p class="empty-hint" id="lt-topic-empty" hidden>No sector / country data for these funds.</p>
   </section>
@@ -56,7 +56,8 @@ interface DisplayRow {
 export function createLookThroughView(container: HTMLElement) {
   container.innerHTML = TEMPLATE;
 
-  const chart = createDoughnut(get<HTMLCanvasElement>("topic-chart"), "60%");
+  const topicCanvas = get<HTMLCanvasElement>("topic-chart");
+  const chart = createDoughnut(topicCanvas, "60%");
   const coverageEl = get<HTMLParagraphElement>("lt-coverage");
   const stocksBody = get<HTMLTableSectionElement>("lt-stocks");
   const emptyEl = get<HTMLParagraphElement>("lt-empty");
@@ -108,12 +109,17 @@ export function createLookThroughView(container: HTMLElement) {
     if (available.length === 0) {
       topicEmpty.hidden = false;
       topicList.replaceChildren();
+      topicCanvas.setAttribute("aria-label", "Topic exposure chart (no data)");
       chart.update([], []);
       return;
     }
     topicEmpty.hidden = true;
 
     const topic = lookThrough.topics[activeTopic];
+    topicCanvas.setAttribute(
+      "aria-label",
+      `${TOPIC_LABELS[activeTopic]} exposure chart: ${topic.rows.length} topics`,
+    );
     const rows = collapseRows(topic.rows, MAX_SLICES);
     chart.update(
       rows.map((row) => row.label),

@@ -344,9 +344,15 @@ h2 {
 }
 
 .position-form .primary,
+.position-form .form-actions,
 .position-form .form-error,
 .position-form .form-note {
   grid-column: 1 / -1;
+}
+
+.position-form .form-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .field {
@@ -412,6 +418,28 @@ button.primary:hover {
 
 button.primary:active {
   transform: translateY(1px);
+}
+
+button.ghost {
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-soft);
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 550;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+button.ghost:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .form-error {
@@ -513,11 +541,12 @@ button.primary:active {
 .actions {
   text-align: right;
   white-space: nowrap;
-  width: 4.5rem;
+  width: 7rem;
 }
 
 button.remove,
-button.toggle {
+button.toggle,
+button.edit {
   width: 1.85rem;
   height: 1.85rem;
   border-radius: var(--radius-sm);
@@ -533,9 +562,23 @@ button.toggle {
     background 0.15s ease;
 }
 
-button.toggle {
+button.toggle,
+button.edit {
   margin-right: 0.35rem;
+}
+
+button.toggle {
   font-size: 0.7rem;
+}
+
+button.edit {
+  font-size: 0.85rem;
+}
+
+button.edit:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 button.remove:hover {

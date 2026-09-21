@@ -94,6 +94,7 @@ describe("mountApp", () => {
     vi.resetModules();
     vi.clearAllMocks();
     document.body.innerHTML = '<div id="app"></div>';
+    window.confirm = vi.fn(() => true);
     apiMock.listPositions.mockResolvedValue([]);
     apiMock.addPosition.mockResolvedValue(position({}));
     apiMock.updatePosition.mockResolvedValue(position({}));
@@ -109,6 +110,15 @@ describe("mountApp", () => {
     expect(byId("chart-empty").hidden).toBe(false);
     expect(byId("legend-empty").hidden).toBe(false);
     expect(byId("allocation-meta").textContent).toBe("");
+  });
+
+  it("tracks the active tab with aria-selected", async () => {
+    await mount();
+
+    expect(byId("tab-portfolio").getAttribute("aria-selected")).toBe("true");
+    clickTab("lookthrough");
+    expect(byId("tab-portfolio").getAttribute("aria-selected")).toBe("false");
+    expect(byId("tab-lookthrough").getAttribute("aria-selected")).toBe("true");
   });
 
   it("switches between the three tabs", async () => {
@@ -137,6 +147,7 @@ describe("mountApp", () => {
 
     expect(byId("positions-meta").textContent).toContain("2 positions");
     expect(byId("allocation-meta").textContent).toContain("2 positions");
+    expect(byId("allocation-chart").getAttribute("aria-label")).toContain("2 positions");
     expect(byId("allocation-legend").textContent).toContain("TER 0.20%");
     expect(byId("allocation-legend").textContent).toContain("Cash · ING");
 
@@ -163,6 +174,69 @@ describe("mountApp", () => {
 
     document.querySelector<HTMLButtonElement>('button[data-action="toggle"]')?.click();
     expect(document.querySelector(".details-row")).toBeNull();
+  });
+
+  it("edits a position and can clear its interest rate", async () => {
+    apiMock.listPositions.mockResolvedValue([
+      position({ id: "cash-1", kind: "cash", amount: 2000, bank: "ING", interestRate: 2.5 }),
+    ]);
+    await mount();
+
+    document.querySelector<HTMLButtonElement>('button[data-action="edit"]')?.click();
+    expect(byId("form-title").textContent).toBe("Edit position");
+    expect((byId("kind") as HTMLSelectElement).value).toBe("cash");
+    expect(input("amount").value).toBe("2000");
+    expect(input("bank").value).toBe("ING");
+    expect(input("interest").value).toBe("2.5");
+    expect(byId("cancel-edit").hidden).toBe(false);
+
+    input("interest").value = "";
+    submitForm();
+    await flush();
+
+    expect(apiMock.updatePosition).toHaveBeenCalledWith("cash-1", {
+      kind: "cash",
+      isin: "",
+      name: "",
+      bank: "ING",
+      interestRate: null,
+      amount: 2000,
+    });
+    expect(apiMock.addPosition).not.toHaveBeenCalled();
+    expect(byId("form-title").textContent).toBe("Add position");
+    expect(byId("cancel-edit").hidden).toBe(true);
+  });
+
+  it("cancels editing without saving", async () => {
+    apiMock.listPositions.mockResolvedValue([
+      position({ id: "cash-1", kind: "cash", amount: 2000, bank: "ING" }),
+    ]);
+    await mount();
+
+    document.querySelector<HTMLButtonElement>('button[data-action="edit"]')?.click();
+    byId("cancel-edit").click();
+
+    expect(byId("form-title").textContent).toBe("Add position");
+    expect(input("amount").value).toBe("");
+    expect((byId("kind") as HTMLSelectElement).value).toBe("etf");
+    expect(apiMock.updatePosition).not.toHaveBeenCalled();
+  });
+
+  it("asks for confirmation before removing", async () => {
+    apiMock.listPositions.mockResolvedValue([
+      position({ id: "cash-1", kind: "cash", amount: 2000, bank: "ING" }),
+    ]);
+    await mount();
+
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    document.querySelector<HTMLButtonElement>('button[data-action="remove"]')?.click();
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("ING"));
+    expect(apiMock.removePosition).not.toHaveBeenCalled();
+
+    confirm.mockReturnValue(true);
+    document.querySelector<HTMLButtonElement>('button[data-action="remove"]')?.click();
+    await flush();
+    expect(apiMock.removePosition).toHaveBeenCalledWith("cash-1");
   });
 
   it("adds an ETF position with the resolved fund name", async () => {

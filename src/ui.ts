@@ -1,4 +1,12 @@
-import type { Allocation, AssetKind, FundInfo, PortfolioSummary } from "../shared/types.ts";
+import type {
+  Allocation,
+  AssetKind,
+  FundInfo,
+  PortfolioSummary,
+  Position,
+  PositionInput,
+} from "../shared/types.ts";
+import type { PositionPatch } from "./api.ts";
 import { isValidIsin, summarize } from "./calc.ts";
 import { allocationColors, createAllocationChart } from "./chart.ts";
 import { euro, integer, percent } from "./format.ts";
@@ -25,17 +33,17 @@ const TEMPLATE = `
 
   <p class="status" id="app-status" role="alert" hidden></p>
 
-  <nav class="tabs" id="tabs">
-    <button type="button" class="tab is-active" data-tab="portfolio">Portfolio</button>
-    <button type="button" class="tab" data-tab="lookthrough">Exposure</button>
-    <button type="button" class="tab" data-tab="config">Positions</button>
+  <nav class="tabs" id="tabs" role="tablist" aria-label="Portfolio views">
+    <button type="button" class="tab is-active" id="tab-portfolio" role="tab" aria-selected="true" aria-controls="view-portfolio" data-tab="portfolio">Portfolio</button>
+    <button type="button" class="tab" id="tab-lookthrough" role="tab" aria-selected="false" aria-controls="view-lookthrough" data-tab="lookthrough">Exposure</button>
+    <button type="button" class="tab" id="tab-config" role="tab" aria-selected="false" aria-controls="view-config" data-tab="config">Positions</button>
   </nav>
 
-  <section class="view" id="view-portfolio">
+  <section class="view" id="view-portfolio" role="tabpanel" aria-labelledby="tab-portfolio">
     <div class="dashboard">
       <section class="card chart-card">
         <div class="chart-wrap">
-          <canvas id="allocation-chart"></canvas>
+          <canvas id="allocation-chart" role="img" aria-label="Portfolio allocation chart"></canvas>
           <div class="chart-center" id="chart-center" hidden>
             <span class="chart-center-label">Total</span>
             <span class="chart-center-value" id="total">—</span>
@@ -54,13 +62,13 @@ const TEMPLATE = `
     </div>
   </section>
 
-  <section class="layout" id="view-lookthrough" hidden></section>
+  <section class="layout" id="view-lookthrough" role="tabpanel" aria-labelledby="tab-lookthrough" hidden></section>
 
-  <section class="view" id="view-config" hidden>
+  <section class="view" id="view-config" role="tabpanel" aria-labelledby="tab-config" hidden>
     <div class="config-layout">
       <section class="card">
         <div class="card-head">
-          <h2>Add position</h2>
+          <h2 id="form-title">Add position</h2>
         </div>
         <form id="position-form" class="position-form" novalidate>
           <div class="field">
@@ -87,7 +95,10 @@ const TEMPLATE = `
             <label for="interest">Interest rate</label>
             <input id="interest" type="number" min="0" step="0.01" inputmode="decimal" placeholder="2.5 · optional" />
           </div>
-          <button type="submit" class="primary" id="submit-button">Add position</button>
+          <div class="form-actions">
+            <button type="submit" class="primary" id="submit-button">Add position</button>
+            <button type="button" class="ghost" id="cancel-edit" hidden>Cancel</button>
+          </div>
           <p class="form-error" id="form-error" role="alert"></p>
         </form>
       </section>
@@ -115,7 +126,8 @@ const expanded = new Set<string>();
 export function mountApp(root: HTMLElement): void {
   root.innerHTML = TEMPLATE;
 
-  const chart = createAllocationChart(get<HTMLCanvasElement>("allocation-chart"));
+  const chartCanvas = get<HTMLCanvasElement>("allocation-chart");
+  const chart = createAllocationChart(chartCanvas);
   const lookThroughView = createLookThroughView(get<HTMLElement>("view-lookthrough"));
   const viewPortfolio = get<HTMLElement>("view-portfolio");
   const viewLookThrough = get<HTMLElement>("view-lookthrough");
@@ -129,6 +141,8 @@ export function mountApp(root: HTMLElement): void {
   const interestInput = get<HTMLInputElement>("interest");
   const amountInput = get<HTMLInputElement>("amount");
   const submitButton = get<HTMLButtonElement>("submit-button");
+  const cancelEdit = get<HTMLButtonElement>("cancel-edit");
+  const formTitle = get<HTMLHeadingElement>("form-title");
   const errorEl = get<HTMLParagraphElement>("form-error");
   const totalEl = get<HTMLSpanElement>("total");
   const chartCenter = get<HTMLDivElement>("chart-center");
@@ -153,7 +167,9 @@ export function mountApp(root: HTMLElement): void {
 
   function setTab(tab: TabId): void {
     for (const button of tabsEl.querySelectorAll<HTMLButtonElement>("button[data-tab]")) {
-      button.classList.toggle("is-active", button.dataset.tab === tab);
+      const active = button.dataset.tab === tab;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-selected", String(active));
     }
     viewPortfolio.hidden = tab !== "portfolio";
     viewLookThrough.hidden = tab !== "lookthrough";
@@ -223,6 +239,46 @@ export function mountApp(root: HTMLElement): void {
 
   kindInput.addEventListener("change", applyKind);
 
+  let editingId: string | null = null;
+
+  function resetForm(): void {
+    form.reset();
+    kindInput.value = "etf";
+    applyKind();
+    setIsinHint("");
+    editingId = null;
+    formTitle.textContent = "Add position";
+    submitButton.textContent = "Add position";
+    cancelEdit.hidden = true;
+    errorEl.textContent = "";
+    amountInput.focus();
+  }
+
+  function startEdit(id: string): void {
+    const position = store.getState().positions.find((entry) => entry.id === id);
+    if (!position) return;
+    editingId = id;
+    setTab("config");
+    kindInput.value = position.kind;
+    applyKind();
+    amountInput.value = String(position.amount);
+    if (position.kind === "etf") {
+      isinInput.value = position.isin;
+    } else {
+      bankInput.value = position.bank;
+      interestInput.value =
+        position.interestRate !== undefined ? String(position.interestRate) : "";
+    }
+    formTitle.textContent = "Edit position";
+    submitButton.textContent = "Save changes";
+    cancelEdit.hidden = false;
+    setIsinHint("");
+    errorEl.textContent = "";
+    amountInput.focus();
+  }
+
+  cancelEdit.addEventListener("click", resetForm);
+
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     errorEl.textContent = "";
@@ -268,19 +324,23 @@ export function mountApp(root: HTMLElement): void {
         }
       }
 
-      await store.addPosition({
+      const input: PositionInput = {
         kind,
         isin: kind === "etf" ? isin : "",
         name,
         bank: kind === "cash" ? bankInput.value.trim() : "",
         interestRate,
         amount,
-      });
-      form.reset();
-      kindInput.value = "etf";
-      applyKind();
-      setIsinHint("");
-      amountInput.focus();
+      };
+      if (editingId) {
+        // On edit an empty rate must clear the stored value, so send null.
+        const patch: PositionPatch = { ...input };
+        patch.interestRate = kind === "cash" ? (interestRate ?? null) : null;
+        await store.updatePosition(editingId, patch);
+      } else {
+        await store.addPosition(input);
+      }
+      resetForm();
     } catch (error) {
       errorEl.textContent = error instanceof Error ? error.message : "Could not save position.";
     } finally {
@@ -293,7 +353,13 @@ export function mountApp(root: HTMLElement): void {
     if (!button) return;
     const id = button.dataset.id!;
 
+    if (button.dataset.action === "edit") {
+      startEdit(id);
+      return;
+    }
     if (button.dataset.action === "remove") {
+      const position = store.getState().positions.find((entry) => entry.id === id);
+      if (!window.confirm(`Remove ${describePosition(position)}?`)) return;
       void store.removePosition(id).catch(() => undefined);
       return;
     }
@@ -329,6 +395,12 @@ export function mountApp(root: HTMLElement): void {
     const hasAllocations = summary.allocations.length > 0;
     totalEl.textContent = summary.total > 0 ? euro.format(summary.total) : "—";
     chartCenter.hidden = !hasAllocations;
+    chartCanvas.setAttribute(
+      "aria-label",
+      hasAllocations
+        ? `Portfolio allocation chart: ${summary.allocations.length} positions, total ${euro.format(summary.total)}`
+        : "Portfolio allocation chart (no positions)",
+    );
 
     listLoading.hidden = state.status !== "loading";
     listEmpty.hidden = state.status !== "ready" || state.positions.length > 0;
@@ -422,6 +494,15 @@ export function mountApp(root: HTMLElement): void {
     const shareCell = el("td", "num", `${percent.format(share * 100)}%`);
 
     const actions = el("td", "actions");
+
+    const edit = el("button", "edit", "✎") as HTMLButtonElement;
+    edit.type = "button";
+    edit.dataset.action = "edit";
+    edit.dataset.id = position.id;
+    edit.title = "Edit position";
+    edit.setAttribute("aria-label", "Edit position");
+    actions.append(edit);
+
     if (!isCash) {
       const toggle = el(
         "button",
@@ -526,6 +607,14 @@ export function mountApp(root: HTMLElement): void {
   store.subscribe(render);
   funds.subscribeFunds(render);
   void store.init();
+}
+
+function describePosition(position: Position | undefined): string {
+  if (!position) return "this position";
+  if (position.kind === "cash") {
+    return position.bank ? `the cash position at ${position.bank}` : "this cash position";
+  }
+  return `the position in ${position.name || position.isin}`;
 }
 
 function legendMeta(
