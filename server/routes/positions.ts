@@ -79,7 +79,9 @@ export function positionsRouter(repo: PositionRepo): Router {
       isin: body.isin ?? existing.isin,
       name: body.name ?? existing.name,
       bank: body.bank ?? existing.bank,
-      interestRate: body.interestRate ?? existing.interestRate,
+      // An explicit key (even null/undefined) clears the rate; only an absent
+      // key falls back to the stored value.
+      interestRate: "interestRate" in body ? body.interestRate : existing.interestRate,
       amount: body.amount ?? existing.amount,
     };
 
