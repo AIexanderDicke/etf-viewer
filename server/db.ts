@@ -188,6 +188,23 @@ export function getDb(): Db {
   return defaultDb;
 }
 
+export interface ClearResult {
+  portfolios: number;
+  positions: number;
+  funds: number;
+}
+
+/** Deletes stored data. `cacheOnly` leaves portfolios and positions untouched. */
+export function clearDatabase(db: Db, { cacheOnly = false } = {}): ClearResult {
+  return db.transaction((): ClearResult => {
+    const funds = db.prepare("DELETE FROM fund_cache").run().changes;
+    if (cacheOnly) return { portfolios: 0, positions: 0, funds };
+    const positions = db.prepare("DELETE FROM positions").run().changes;
+    const portfolios = db.prepare("DELETE FROM portfolios").run().changes;
+    return { portfolios, positions, funds };
+  })();
+}
+
 interface PositionRow {
   id: string;
   portfolio_id: string;

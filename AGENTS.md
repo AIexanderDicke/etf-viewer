@@ -71,6 +71,7 @@ npm run dev:server     # backend only
 npm run dev:web        # frontend only
 npm run build          # typecheck + production frontend build (dist/)
 npm run start          # backend only (no watch)
+npm run db:clear       # delete all portfolios, positions and cached funds (--cache: funds only)
 npm run preview        # serve the production build
 npm test               # vitest run
 npm run test:coverage  # vitest + v8 coverage with a 90% gate (writes coverage/)

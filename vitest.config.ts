@@ -14,8 +14,9 @@ export default defineConfig({
         // covered indirectly through the UI integration test.
         "src/chart.ts",
         "src/vite-env.d.ts",
-        // Bootstrap side effects (listen, process signals) are not unit-testable.
+        // Bootstrap side effects (listen, process signals, CLI) are not unit-testable.
         "server/index.ts",
+        "server/clear.ts",
       ],
       thresholds: { lines: 90, functions: 90, branches: 90, statements: 90 },
     },

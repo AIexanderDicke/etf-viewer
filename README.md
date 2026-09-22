@@ -59,20 +59,28 @@ silently misbehaving.
 
 ## Scripts
 
-| Command                 | What it does                                      |
-| ----------------------- | ------------------------------------------------- |
-| `npm run dev`           | Backend + frontend in watch mode.                 |
-| `npm run dev:server`    | Backend only.                                     |
-| `npm run dev:web`       | Frontend only.                                    |
-| `npm run build`         | Typecheck + production frontend build to `dist/`. |
-| `npm run start`         | Backend only, no watch.                           |
-| `npm run preview`       | Serve the production build.                       |
-| `npm run type-check`    | TypeScript, frontend and backend projects.        |
-| `npm run lint`          | Biome lint (`lint:fix` to apply safe fixes).      |
-| `npm run format`        | Prettier write (`format:check` to verify).        |
-| `npm test`              | Vitest run.                                       |
-| `npm run test:coverage` | Vitest with a v8 coverage report and a 90% gate.  |
-| `npm run check`         | Type-check + lint + tests.                        |
+| Command                 | What it does                                       |
+| ----------------------- | -------------------------------------------------- |
+| `npm run dev`           | Backend + frontend in watch mode.                  |
+| `npm run dev:server`    | Backend only.                                      |
+| `npm run dev:web`       | Frontend only.                                     |
+| `npm run build`         | Typecheck + production frontend build to `dist/`.  |
+| `npm run start`         | Backend only, no watch.                            |
+| `npm run db:clear`      | Delete all portfolios, positions and cached funds. |
+| `npm run preview`       | Serve the production build.                        |
+| `npm run type-check`    | TypeScript, frontend and backend projects.         |
+| `npm run lint`          | Biome lint (`lint:fix` to apply safe fixes).       |
+| `npm run format`        | Prettier write (`format:check` to verify).         |
+| `npm test`              | Vitest run.                                        |
+| `npm run test:coverage` | Vitest with a v8 coverage report and a 90% gate.   |
+| `npm run check`         | Type-check + lint + tests.                         |
+
+### Clearing the database
+
+`npm run db:clear` deletes every portfolio, position and cached fund payload from the SQLite
+file (`DB_FILE`). Run it while the backend is stopped; the default portfolio is re-seeded on the
+next start. To drop only the cached fund data — for example after a `FundInfo` shape change — use
+`npm run db:clear -- --cache`.
 
 ## HTTP API
 

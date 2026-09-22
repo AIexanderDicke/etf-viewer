@@ -4,6 +4,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  clearDatabase,
   createDb,
   createFundCacheRepo,
   createPortfolioRepo,
@@ -172,6 +173,49 @@ describe("migrations", () => {
         fs.rmSync(`${file}${suffix}`, { force: true });
       }
     }
+  });
+});
+
+describe("clearDatabase", () => {
+  function seed(db: Db): void {
+    const positions = createPositionRepo(db);
+    positions.create({ kind: "etf", isin: "IE00B4L5Y983", name: "World", amount: 1000 });
+    const cache = createFundCacheRepo(db);
+    cache.set(
+      "IE00B4L5Y983",
+      {
+        isin: "IE00B4L5Y983",
+        name: "World",
+        source: "test",
+        stale: false,
+        topHoldings: [],
+        coverage: 0,
+      },
+      1000,
+    );
+  }
+
+  it("removes positions, portfolios and cached funds", () => {
+    const db = createDb(":memory:");
+    seed(db);
+
+    const cleared = clearDatabase(db);
+
+    expect(cleared).toEqual({ portfolios: 1, positions: 1, funds: 1 });
+    expect(createPositionRepo(db).list()).toHaveLength(0);
+    expect(createPortfolioRepo(db).list()).toHaveLength(0);
+    expect(createFundCacheRepo(db).get("IE00B4L5Y983")).toBeNull();
+  });
+
+  it("keeps portfolios and positions when clearing only the cache", () => {
+    const db = createDb(":memory:");
+    seed(db);
+
+    const cleared = clearDatabase(db, { cacheOnly: true });
+
+    expect(cleared).toEqual({ portfolios: 0, positions: 0, funds: 1 });
+    expect(createPositionRepo(db).list()).toHaveLength(1);
+    expect(createPortfolioRepo(db).list()).toHaveLength(1);
   });
 });
 
