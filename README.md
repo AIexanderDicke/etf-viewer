@@ -17,16 +17,12 @@ stocks, sectors and countries.
 
 ## Getting started
 
+Build the image and run it with a named volume for the SQLite database:
+
 ```bash
-npm install
-npm run dev
+docker build -t etf-viewer .
+docker run --rm -p 3000:3000 -v etf-viewer-data:/data etf-viewer
 ```
 
-`npm run dev` starts the backend and the Vite dev server together. Open the URL Vite prints and
-add positions on the **Positions** tab.
-
-Without an API key the backend uses [FundFacts'](https://fundfactsapi.com/) keyless demo
-endpoint. For higher limits, get a key and set `FUNDFACTS_API_KEY`.
-
-To delete all portfolios, positions and cached funds, stop the backend and run `npm run db:clear`.
-Use `npm run db:clear -- --cache` to drop only the cached fund data.
+Open http://localhost:3000 and add positions on the **Positions** tab. The database lives in the
+`etf-viewer-data` volume, so it survives container restarts.
