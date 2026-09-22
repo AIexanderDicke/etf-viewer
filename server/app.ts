@@ -1,3 +1,4 @@
+import path from "node:path";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import type { PortfolioRepo, PositionRepo } from "./db.ts";
 import type { FundService } from "./holdings/service.ts";
@@ -10,6 +11,8 @@ export interface AppDeps {
   readonly positionRepo: PositionRepo;
   readonly fundService: FundService;
   readonly fundDataMode: string;
+  /** Directory of the built frontend to serve; omit in dev so Vite serves it. */
+  readonly staticDir?: string;
 }
 
 /** Extracts an HTTP status from a thrown value, defaulting to 500. */
@@ -40,6 +43,15 @@ export function createApp(deps: AppDeps): Express {
   app.use("/api/portfolios", portfoliosRouter(deps.portfolioRepo));
   app.use("/api/positions", positionsRouter(deps.positionRepo, deps.portfolioRepo));
   app.use("/api/funds", fundsRouter(deps.fundService));
+
+  if (deps.staticDir) {
+    const staticDir = deps.staticDir;
+    app.use(express.static(staticDir));
+    app.use((req, res, next) => {
+      if (req.method !== "GET" || req.path.startsWith("/api")) return next();
+      res.sendFile(path.join(staticDir, "index.html"));
+    });
+  }
 
   app.use((_req, res) => {
     res.status(404).json({ error: "not found" });

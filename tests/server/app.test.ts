@@ -1,6 +1,9 @@
 import type { AddressInfo } from "node:net";
 import { once } from "node:events";
+import fs from "node:fs";
 import type { Server } from "node:http";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FundInfo, Portfolio, Position } from "../../shared/types.ts";
 import { createApp } from "../../server/app.ts";
@@ -277,5 +280,59 @@ describe("HTTP API", () => {
     const { status, body } = await json<{ error: string }>("/api/nope");
     expect(status).toBe(404);
     expect(body.error).toBe("not found");
+  });
+});
+
+describe("static frontend", () => {
+  let db: Db;
+  let server: Server;
+  let baseUrl: string;
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "etf-static-"));
+    fs.writeFileSync(path.join(dir, "index.html"), "<!doctype html><title>ETF Viewer</title>");
+    fs.mkdirSync(path.join(dir, "assets"));
+    fs.writeFileSync(path.join(dir, "assets", "app.js"), "console.log('hi');");
+
+    db = createDb(":memory:");
+    const app = createApp({
+      portfolioRepo: createPortfolioRepo(db),
+      positionRepo: createPositionRepo(db),
+      fundService: new FundService({ providers: [provider], cache: createFundCacheRepo(db) }),
+      fundDataMode: "demo",
+      staticDir: dir,
+    });
+    server = app.listen(0);
+    await once(server, "listening");
+    baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+
+  afterEach(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    db.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("serves the built index and hashed assets", async () => {
+    const root = await fetch(`${baseUrl}/`);
+    expect(root.status).toBe(200);
+    expect(await root.text()).toContain("ETF Viewer");
+
+    const asset = await fetch(`${baseUrl}/assets/app.js`);
+    expect(asset.status).toBe(200);
+    expect(await asset.text()).toBe("console.log('hi');");
+  });
+
+  it("falls back to index.html for client routes but keeps the API", async () => {
+    const deep = await fetch(`${baseUrl}/positions`);
+    expect(deep.status).toBe(200);
+    expect(await deep.text()).toContain("ETF Viewer");
+
+    const health = await fetch(`${baseUrl}/api/health`);
+    expect(health.status).toBe(200);
+
+    const missing = await fetch(`${baseUrl}/api/nope`);
+    expect(missing.status).toBe(404);
   });
 });

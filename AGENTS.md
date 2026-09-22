@@ -161,6 +161,10 @@ valid ISIN for ETFs, and a non-negative `interestRate` when present.
   order; the name normaliser strips legal suffixes so `APPLE` == `APPLE INC`.
 - **Keep aggregation pure** in `shared/exposure.ts`. If it needs to move
   server-side later, it already can.
+- **The backend can serve the built frontend**: `createApp` accepts an optional
+  `staticDir`; `server/index.ts` passes `dist/` when `dist/index.html` exists, so
+  one production container serves both the SPA and `/api`. In dev it stays unset
+  and Vite serves the UI.
 - **Schema is created with `CREATE TABLE IF NOT EXISTS`**, with explicit
   `ALTER TABLE` migrations for new columns (see `addColumn` in `db.ts`; `bank`
   and `interest_rate` were both added this way). Changing a table means adding a

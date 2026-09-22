@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { createApp } from "./app.ts";
 import { config } from "./config.ts";
 import { createFundCacheRepo, createPortfolioRepo, createPositionRepo, getDb } from "./db.ts";
@@ -20,11 +22,15 @@ const fundService = new FundService({
 
 const fundDataMode = config.fundFactsApiKey ? "api-key" : "demo";
 
+const staticDir = path.resolve("dist");
+const hasStaticFrontend = fs.existsSync(path.join(staticDir, "index.html"));
+
 const app = createApp({
   portfolioRepo: createPortfolioRepo(db),
   positionRepo: createPositionRepo(db),
   fundService,
   fundDataMode,
+  ...(hasStaticFrontend ? { staticDir } : {}),
 });
 
 const server = app.listen(config.port, () => {
