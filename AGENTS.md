@@ -130,9 +130,12 @@ valid ISIN for ETFs, and a non-negative `interestRate` when present.
 
 - **Portfolios** are the top-level container: every position has a
   `portfolioId`. The backend seeds an unnamed default portfolio and attaches
-  pre-existing rows to it (`ensureDefaultPortfolio`). The header picker switches
-  portfolios and "Name & start new" renames the active one before creating an
-  empty one; the selection is remembered in `localStorage`.
+  pre-existing rows to it (`ensureDefaultPortfolio`). The header has a picker, an
+  inline name field with a Save button that renames the active portfolio, and a
+  "Start new portfolio" button that creates an auto-numbered `Portfolio N`.
+  Names are unique case-insensitively
+  and duplicates are rejected (409); a soft warning shows while the default name
+  is kept. The selection is remembered in `localStorage`.
 - **Duplicate ETF ISINs are joined** inside a portfolio: POSTing an ISIN that
   already exists sums the amount into the existing row (one row per ISIN per
   portfolio) instead of creating a second position. Cash positions stay separate.
