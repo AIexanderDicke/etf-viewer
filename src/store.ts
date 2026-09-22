@@ -128,6 +128,23 @@ export async function importPositions(inputs: PositionInput[]): Promise<void> {
   await refresh();
 }
 
+/** Creates a new portfolio for the import, then fills it and makes it active. */
+export async function importPortfolio(name: string, inputs: PositionInput[]): Promise<Portfolio> {
+  const portfolio = await createPortfolio(uniquePortfolioName(name, state.portfolios));
+  await importPositions(inputs);
+  return portfolio;
+}
+
+/** Keeps imported names unique (case-insensitively) without failing the import. */
+function uniquePortfolioName(base: string, portfolios: Portfolio[]): string {
+  const wanted = base.trim() || "Imported portfolio";
+  const taken = new Set(portfolios.map((portfolio) => portfolio.name.trim().toLowerCase()));
+  if (!taken.has(wanted.toLowerCase())) return wanted;
+  let index = 2;
+  while (taken.has(`${wanted} (${index})`.toLowerCase())) index += 1;
+  return `${wanted} (${index})`;
+}
+
 export async function updatePosition(id: string, patch: PositionPatch): Promise<void> {
   await api.updatePosition(id, patch);
   await refresh();

@@ -143,7 +143,7 @@ describe("mountApp", () => {
     apiMock.getFund.mockResolvedValue(fundInfo());
     transferMock.buildPortfolioExport.mockReturnValue({ marker: true });
     transferMock.portfolioExportFilename.mockReturnValue("core-positions.json");
-    transferMock.parsePortfolioImport.mockReturnValue([{ kind: "cash", amount: 10 }]);
+    transferMock.parsePortfolioImport.mockReturnValue({ portfolio: "Imported", positions: [] });
   });
 
   it("renders the empty portfolio state", async () => {
@@ -311,7 +311,7 @@ describe("mountApp", () => {
     expect(payload.rows[1]).toMatchObject({ label: "Cash · ING", amount: 2000 });
   });
 
-  it("falls back to a generic title when the portfolio is unnamed", async () => {
+  it("refuses to export an unnamed portfolio", async () => {
     apiMock.listPositions.mockResolvedValue([
       position({ id: "cash-1", kind: "cash", amount: 2000 }),
     ]);
@@ -320,9 +320,8 @@ describe("mountApp", () => {
 
     (byId("export-png") as HTMLButtonElement).click();
 
-    expect(exportMock.exportPortfolioPng).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Portfolio" }),
-    );
+    expect(exportMock.exportPortfolioPng).not.toHaveBeenCalled();
+    expect(byId("portfolio-warning").textContent).toMatch(/name before exporting/);
   });
 
   it("downloads the active portfolio as JSON", async () => {
@@ -341,21 +340,25 @@ describe("mountApp", () => {
     expect(transferMock.downloadJson).toHaveBeenCalledWith({ marker: true }, "core-positions.json");
   });
 
-  it("imports positions from a JSON file", async () => {
+  it("imports positions into a new portfolio", async () => {
     await mount();
-    transferMock.parsePortfolioImport.mockReturnValue([
-      { kind: "cash", isin: "", name: "", bank: "ING", amount: 500 },
-    ]);
+    transferMock.parsePortfolioImport.mockReturnValue({
+      portfolio: "Imported",
+      positions: [{ kind: "cash", isin: "", name: "", bank: "ING", amount: 500 }],
+    });
+    apiMock.createPortfolio.mockResolvedValue(portfolio("portfolio-2", "Imported"));
     apiMock.addPosition.mockResolvedValue(position({}));
 
     selectFile("core.json", "{}");
     await flush();
 
     expect(transferMock.parsePortfolioImport).toHaveBeenCalledWith("{}");
+    expect(apiMock.createPortfolio).toHaveBeenCalledWith("Imported");
     expect(apiMock.addPosition).toHaveBeenCalledWith(
       { kind: "cash", isin: "", name: "", bank: "ING", amount: 500 },
-      "portfolio-1",
+      "portfolio-2",
     );
+    expect((byId("portfolio-select") as HTMLSelectElement).value).toBe("portfolio-2");
   });
 
   it("reports an invalid import file", async () => {

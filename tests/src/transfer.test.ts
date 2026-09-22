@@ -63,9 +63,10 @@ describe("portfolioExportFilename", () => {
 
 describe("parsePortfolioImport", () => {
   it("parses an export envelope", () => {
-    const inputs = parsePortfolioImport(
+    const result = parsePortfolioImport(
       JSON.stringify({
         format: "etf-viewer.portfolio",
+        portfolio: " Core ",
         positions: [
           { kind: "etf", isin: WORLD.toLowerCase(), name: " World ", amount: 1000 },
           { kind: "cash", bank: " ING ", interestRate: 2.5, amount: 500 },
@@ -74,17 +75,21 @@ describe("parsePortfolioImport", () => {
       }),
     );
 
-    expect(inputs).toEqual([
+    expect(result.portfolio).toBe("Core");
+    expect(result.positions).toEqual([
       { kind: "etf", isin: WORLD, name: "World", amount: 1000 },
       { kind: "cash", isin: "", name: "", bank: "ING", interestRate: 2.5, amount: 500 },
       { kind: "cash", isin: "", name: "", bank: "", interestRate: undefined, amount: 100 },
     ]);
   });
 
-  it("accepts a bare array", () => {
-    expect(parsePortfolioImport('[{"kind":"cash","amount":5}]')).toEqual([
-      { kind: "cash", isin: "", name: "", bank: "", interestRate: undefined, amount: 5 },
-    ]);
+  it("accepts a bare array without a portfolio name", () => {
+    expect(parsePortfolioImport('[{"kind":"cash","amount":5}]')).toEqual({
+      portfolio: "",
+      positions: [
+        { kind: "cash", isin: "", name: "", bank: "", interestRate: undefined, amount: 5 },
+      ],
+    });
   });
 
   it("rejects invalid JSON", () => {

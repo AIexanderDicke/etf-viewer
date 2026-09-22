@@ -59,12 +59,17 @@ export function portfolioExportFilename(portfolio: string): string {
   return `${slug || "portfolio"}-positions.json`;
 }
 
+export interface ParsedImport {
+  portfolio: string;
+  positions: PositionInput[];
+}
+
 /**
  * Reads a portfolio export back into position inputs. Accepts the export
  * envelope or a bare array, and rejects anything the backend would refuse so
  * the user sees a clear message instead of a partial import.
  */
-export function parsePortfolioImport(text: string): PositionInput[] {
+export function parsePortfolioImport(text: string): ParsedImport {
   let data: unknown;
   try {
     data = JSON.parse(text);
@@ -72,15 +77,19 @@ export function parsePortfolioImport(text: string): PositionInput[] {
     throw new Error("That file is not valid JSON.");
   }
 
-  const entries = Array.isArray(data)
-    ? data
-    : isRecord(data) && Array.isArray(data.positions)
-      ? data.positions
-      : undefined;
-  if (!entries) throw new Error("Expected a portfolio JSON export.");
+  let entries: unknown[];
+  let portfolio = "";
+  if (Array.isArray(data)) {
+    entries = data;
+  } else if (isRecord(data) && Array.isArray(data.positions)) {
+    entries = data.positions;
+    portfolio = typeof data.portfolio === "string" ? data.portfolio.trim() : "";
+  } else {
+    throw new Error("Expected a portfolio JSON export.");
+  }
   if (entries.length === 0) throw new Error("The file has no positions to import.");
 
-  return entries.map((entry, index) => parsePosition(entry, index));
+  return { portfolio, positions: entries.map((entry, index) => parsePosition(entry, index)) };
 }
 
 function parsePosition(value: unknown, index: number): PositionInput {

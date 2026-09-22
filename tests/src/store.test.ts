@@ -203,6 +203,41 @@ describe("store", () => {
     );
   });
 
+  it("imports into a fresh portfolio and switches to it", async () => {
+    const store = await freshStore();
+    await store.init();
+    apiMock.createPortfolio.mockResolvedValue(portfolio("portfolio-9", "Imported"));
+    apiMock.listPositions.mockResolvedValue([position("p9", 200, "portfolio-9")]);
+
+    const created = await store.importPortfolio("Imported", [{ kind: "cash", amount: 200 }]);
+
+    expect(apiMock.createPortfolio).toHaveBeenCalledWith("Imported");
+    expect(apiMock.addPosition).toHaveBeenCalledWith({ kind: "cash", amount: 200 }, "portfolio-9");
+    expect(created.id).toBe("portfolio-9");
+    expect(store.getState().activePortfolioId).toBe("portfolio-9");
+  });
+
+  it("makes room for a duplicate import name", async () => {
+    const store = await freshStore();
+    apiMock.listPortfolios.mockResolvedValue([portfolio("portfolio-1", "Core")]);
+    await store.init();
+    apiMock.createPortfolio.mockResolvedValue(portfolio("portfolio-2", "Core (2)"));
+
+    await store.importPortfolio("Core", [{ kind: "cash", amount: 1 }]);
+
+    expect(apiMock.createPortfolio).toHaveBeenCalledWith("Core (2)");
+  });
+
+  it("names an unnamed import", async () => {
+    const store = await freshStore();
+    await store.init();
+    apiMock.createPortfolio.mockResolvedValue(portfolio("portfolio-2", "Imported portfolio"));
+
+    await store.importPortfolio("", [{ kind: "cash", amount: 1 }]);
+
+    expect(apiMock.createPortfolio).toHaveBeenCalledWith("Imported portfolio");
+  });
+
   it("removes a position then refreshes", async () => {
     const store = await freshStore();
     await store.init();

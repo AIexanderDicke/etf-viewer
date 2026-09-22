@@ -68,11 +68,19 @@ const TEMPLATE = `
 
   <p class="status" id="app-status" role="alert" hidden></p>
 
-  <nav class="tabs" id="tabs" role="tablist" aria-label="Portfolio views">
-    <button type="button" class="tab is-active" id="tab-portfolio" role="tab" aria-selected="true" aria-controls="view-portfolio" data-tab="portfolio">Portfolio</button>
-    <button type="button" class="tab" id="tab-lookthrough" role="tab" aria-selected="false" aria-controls="view-lookthrough" data-tab="lookthrough">Exposure</button>
-    <button type="button" class="tab" id="tab-config" role="tab" aria-selected="false" aria-controls="view-config" data-tab="config">Positions</button>
-  </nav>
+  <div class="view-bar">
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Portfolio views">
+      <button type="button" class="tab is-active" id="tab-portfolio" role="tab" aria-selected="true" aria-controls="view-portfolio" data-tab="portfolio">Portfolio</button>
+      <button type="button" class="tab" id="tab-lookthrough" role="tab" aria-selected="false" aria-controls="view-lookthrough" data-tab="lookthrough">Exposure</button>
+      <button type="button" class="tab" id="tab-config" role="tab" aria-selected="false" aria-controls="view-config" data-tab="config">Positions</button>
+    </nav>
+    <div class="view-actions">
+      <button type="button" class="action-pill" id="export-png" title="Export the allocation as a PNG" disabled>PNG</button>
+      <button type="button" class="action-pill" id="export-json" title="Export the positions as JSON" disabled>Export</button>
+      <button type="button" class="action-pill" id="import-json-button" title="Import a portfolio from JSON">Import</button>
+      <input type="file" id="import-json" accept="application/json,.json" hidden />
+    </div>
+  </div>
 
   <section class="view" id="view-portfolio" role="tabpanel" aria-labelledby="tab-portfolio">
     <div class="dashboard">
@@ -89,17 +97,7 @@ const TEMPLATE = `
       <section class="card">
         <div class="card-head">
           <h2>Allocation</h2>
-          <div class="card-head-actions">
-            <span class="card-meta" id="allocation-meta"></span>
-            <button type="button" class="ghost export-button" id="export-png" disabled>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M12 3v12" />
-                <path d="m7 10 5 5 5-5" />
-                <path d="M5 21h14" />
-              </svg>
-              Export PNG
-            </button>
-          </div>
+          <span class="card-meta" id="allocation-meta"></span>
         </div>
         <ul class="legend" id="allocation-legend"></ul>
         <p class="empty-hint" id="legend-empty" hidden>No positions yet.</p>
@@ -151,16 +149,7 @@ const TEMPLATE = `
       <section class="card">
         <div class="card-head">
           <h2>Positions</h2>
-          <div class="card-head-actions">
-            <span class="card-meta" id="positions-meta"></span>
-            <button type="button" class="ghost export-button" id="export-json" disabled>
-              Export JSON
-            </button>
-            <button type="button" class="ghost export-button" id="import-json-button" disabled>
-              Import JSON
-            </button>
-            <input type="file" id="import-json" accept="application/json,.json" hidden />
-          </div>
+          <span class="card-meta" id="positions-meta"></span>
         </div>
         <table class="positions">
           <thead>
@@ -207,7 +196,7 @@ export function mountApp(root: HTMLElement): void {
   const legendEl = get<HTMLUListElement>("allocation-legend");
   const legendEmpty = get<HTMLParagraphElement>("legend-empty");
   const allocationMeta = get<HTMLSpanElement>("allocation-meta");
-  const exportButton = get<HTMLButtonElement>("export-png");
+  const exportPngButton = get<HTMLButtonElement>("export-png");
   const positionsMeta = get<HTMLSpanElement>("positions-meta");
   const exportJsonButton = get<HTMLButtonElement>("export-json");
   const importJsonButton = get<HTMLButtonElement>("import-json-button");
@@ -220,6 +209,7 @@ export function mountApp(root: HTMLElement): void {
   const savePortfolioButton = get<HTMLButtonElement>("save-portfolio");
   const newPortfolioButton = get<HTMLButtonElement>("new-portfolio");
   let portfolioSignature = "";
+  let activeTab: TabId = "portfolio";
 
   const isinField = document.querySelector<HTMLDivElement>(".field-isin")!;
   const cashFields = document.querySelectorAll<HTMLDivElement>(".field-cash");
@@ -230,6 +220,7 @@ export function mountApp(root: HTMLElement): void {
   });
 
   function setTab(tab: TabId): void {
+    activeTab = tab;
     for (const button of tabsEl.querySelectorAll<HTMLButtonElement>("button[data-tab]")) {
       const active = button.dataset.tab === tab;
       button.classList.toggle("is-active", active);
@@ -315,6 +306,18 @@ export function mountApp(root: HTMLElement): void {
     portfolioWarning.classList.toggle("is-error", isError);
     portfolioWarning.hidden = false;
     portfolioWarning.textContent = message;
+  }
+
+  /** Exports carry a real portfolio name; refuse while it is still unnamed. */
+  function exportName(state: store.StoreState): string | null {
+    const active = state.portfolios.find((entry) => entry.id === state.activePortfolioId);
+    const name = active?.name.trim() ?? "";
+    if (!name || isDefaultPortfolioName(name)) {
+      portfolioName.focus();
+      showPortfolioMessage("Save a portfolio name before exporting.", true);
+      return null;
+    }
+    return name;
   }
 
   function renderPortfolios(state: store.StoreState): void {
@@ -453,12 +456,13 @@ export function mountApp(root: HTMLElement): void {
 
   cancelEdit.addEventListener("click", resetForm);
 
-  exportButton.addEventListener("click", () => {
+  exportPngButton.addEventListener("click", () => {
     const state = store.getState();
+    const name = exportName(state);
+    if (!name) return;
     const summary = summarize(state.positions);
-    const active = state.portfolios.find((entry) => entry.id === state.activePortfolioId);
     exportPortfolioPng({
-      title: active?.name.trim() || "Portfolio",
+      title: name,
       total: euro.format(summary.total),
       chart: chartCanvas,
       rows: legendEntries(summary),
@@ -467,8 +471,8 @@ export function mountApp(root: HTMLElement): void {
 
   exportJsonButton.addEventListener("click", () => {
     const state = store.getState();
-    const active = state.portfolios.find((entry) => entry.id === state.activePortfolioId);
-    const name = active?.name.trim() || "Portfolio";
+    const name = exportName(state);
+    if (!name) return;
     downloadJson(buildPortfolioExport(name, state.positions), portfolioExportFilename(name));
   });
 
@@ -483,7 +487,8 @@ export function mountApp(root: HTMLElement): void {
   async function importPositions(file: File): Promise<void> {
     errorEl.textContent = "";
     try {
-      await store.importPositions(parsePortfolioImport(await file.text()));
+      const parsed = parsePortfolioImport(await file.text());
+      await store.importPortfolio(parsed.portfolio, parsed.positions);
     } catch (error) {
       errorEl.textContent = error instanceof Error ? error.message : "Could not import the file.";
     }
@@ -620,13 +625,12 @@ export function mountApp(root: HTMLElement): void {
     allocationMeta.textContent = hasAllocations
       ? `${summary.allocations.length} ${summary.allocations.length === 1 ? "position" : "positions"}`
       : "";
-    exportButton.disabled = !hasAllocations;
+    exportPngButton.disabled = !hasAllocations || activeTab !== "portfolio";
     positionsMeta.textContent =
       state.status === "ready" && state.positions.length > 0
         ? `${state.positions.length} ${state.positions.length === 1 ? "position" : "positions"}`
         : "";
     exportJsonButton.disabled = state.positions.length === 0;
-    importJsonButton.disabled = !state.activePortfolioId;
     listBody.replaceChildren(...summary.allocations.flatMap(renderRow));
     renderLegend(summary);
 
