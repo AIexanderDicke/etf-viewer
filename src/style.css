@@ -145,51 +145,45 @@ h2 {
 
 .portfolio-input-group {
   display: flex;
-  align-items: stretch;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .portfolio-input-group > select,
 .portfolio-input-group > input,
 .portfolio-input-group > button {
-  height: 2.5rem;
-  border-radius: 0;
-  margin-left: -1px;
-}
-
-.portfolio-input-group > :first-child {
+  height: 2.1rem;
+  border-radius: 999px;
   margin-left: 0;
-  border-top-left-radius: var(--radius-sm);
-  border-bottom-left-radius: var(--radius-sm);
-}
-
-.portfolio-input-group > :last-child {
-  border-top-right-radius: var(--radius-sm);
-  border-bottom-right-radius: var(--radius-sm);
-}
-
-.portfolio-input-group > select:focus,
-.portfolio-input-group > input:focus,
-.portfolio-input-group > button:focus {
-  position: relative;
-  z-index: 1;
+  font-size: 0.8rem;
 }
 
 .portfolio-input-group select {
   appearance: none;
   width: auto;
-  min-width: 11rem;
-  max-width: 18rem;
-  padding-right: 2.1rem;
+  min-width: 10rem;
+  max-width: 16rem;
+  padding: 0 2.1rem 0 0.9rem;
+  font-weight: 550;
+  color: var(--text-soft);
+  cursor: pointer;
+  background-color: var(--surface);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2374748a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 0.75rem center;
+  background-position: right 0.8rem center;
   background-size: 0.8rem;
 }
 
 .portfolio-input-group input {
   width: auto;
-  min-width: 11rem;
-  max-width: 16rem;
+  min-width: 10rem;
+  max-width: 15rem;
+  padding: 0 0.9rem;
+}
+
+.portfolio-input-group .icon-button {
+  width: 2.1rem;
+  height: 2.1rem;
 }
 
 .portfolio-input-group input.is-default {
