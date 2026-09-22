@@ -4,6 +4,7 @@
 # backend directly (type stripping), so there is no server build step.
 FROM node:24-alpine AS build
 WORKDIR /app
+RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY tsconfig.json tsconfig.server.json vite.config.ts index.html ./
