@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Portfolio, Position, PositionInput } from "../shared/types.ts";
+import type { Portfolio, Position, PositionInput } from "../../shared/types.ts";
 
 const apiMock = vi.hoisted(() => ({
   listPortfolios: vi.fn(),
@@ -12,7 +12,7 @@ const apiMock = vi.hoisted(() => ({
   getFund: vi.fn(),
 }));
 
-vi.mock("./api.ts", () => ({ api: apiMock }));
+vi.mock("../../src/api.ts", () => ({ api: apiMock }));
 
 function portfolio(id: string, name = ""): Portfolio {
   return {
@@ -39,7 +39,7 @@ function position(id: string, amount: number, portfolioId = "portfolio-1"): Posi
 
 async function freshStore() {
   vi.resetModules();
-  return import("./store.ts");
+  return import("../../src/store.ts");
 }
 
 describe("store", () => {

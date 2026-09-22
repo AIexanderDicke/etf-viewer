@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Position } from "../shared/types.ts";
-import { api } from "./api.ts";
+import type { Position } from "../../shared/types.ts";
+import { api } from "../../src/api.ts";
 
 const fetchMock = vi.fn();
 

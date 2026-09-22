@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Position } from "../shared/types.ts";
-import { isValidIsin, summarize } from "./calc.ts";
+import type { Position } from "../../shared/types.ts";
+import { isValidIsin, summarize } from "../../src/calc.ts";
 
 function position(partial: Partial<Position> & Pick<Position, "kind" | "amount">): Position {
   return {

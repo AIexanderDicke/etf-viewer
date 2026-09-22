@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createSnapshotProvider, snapshotIsins } from "./snapshot.ts";
+import { createSnapshotProvider, snapshotIsins } from "../../../server/holdings/snapshot.ts";
 
 describe("snapshot provider", () => {
   const provider = createSnapshotProvider();

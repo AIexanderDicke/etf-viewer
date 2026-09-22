@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createFundFactsProvider, normalizeFundFacts } from "./fundfacts.ts";
+import { createFundFactsProvider, normalizeFundFacts } from "../../../server/holdings/fundfacts.ts";
 
 const ISIN = "IE00B4L5Y983";
 

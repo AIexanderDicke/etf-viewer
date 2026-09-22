@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isValidIsin, normalizeIsin } from "./isin.ts";
+import { isValidIsin, normalizeIsin } from "../../shared/isin.ts";
 
 describe("isValidIsin", () => {
   it("accepts well-formed ISINs with a correct check digit", () => {

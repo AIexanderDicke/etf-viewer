@@ -10,7 +10,7 @@ import {
   createPortfolioRepo,
   createPositionRepo,
   type Db,
-} from "./db.ts";
+} from "../../server/db.ts";
 
 describe("position repo", () => {
   let db: Db;

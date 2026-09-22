@@ -8,7 +8,7 @@ describe("getDb", () => {
 
   it("memoises a single shared connection", async () => {
     vi.stubEnv("DB_FILE", ":memory:");
-    const { getDb } = await import("./db.ts");
+    const { getDb } = await import("../../server/db.ts");
 
     const first = getDb();
     expect(getDb()).toBe(first);

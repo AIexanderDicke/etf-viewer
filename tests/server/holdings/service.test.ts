@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { FundInfo } from "../../shared/types.ts";
-import { createDb, createFundCacheRepo, type FundCacheRepo } from "../db.ts";
-import { FundService } from "./service.ts";
-import type { HoldingsProvider } from "./types.ts";
+import type { FundInfo } from "../../../shared/types.ts";
+import { createDb, createFundCacheRepo, type FundCacheRepo } from "../../../server/db.ts";
+import { FundService } from "../../../server/holdings/service.ts";
+import type { HoldingsProvider } from "../../../server/holdings/types.ts";
 
 const ISIN = "IE00B4L5Y983";
 

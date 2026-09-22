@@ -1,6 +1,6 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadConfig } from "./config.ts";
+import { loadConfig } from "../../server/config.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

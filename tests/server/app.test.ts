@@ -2,17 +2,17 @@ import type { AddressInfo } from "node:net";
 import { once } from "node:events";
 import type { Server } from "node:http";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { FundInfo, Portfolio, Position } from "../shared/types.ts";
-import { createApp } from "./app.ts";
+import type { FundInfo, Portfolio, Position } from "../../shared/types.ts";
+import { createApp } from "../../server/app.ts";
 import {
   createDb,
   createFundCacheRepo,
   createPortfolioRepo,
   createPositionRepo,
   type Db,
-} from "./db.ts";
-import { FundService } from "./holdings/service.ts";
-import type { HoldingsProvider } from "./holdings/types.ts";
+} from "../../server/db.ts";
+import { FundService } from "../../server/holdings/service.ts";
+import type { HoldingsProvider } from "../../server/holdings/types.ts";
 
 const ETF_ISIN = "IE00B4L5Y983";
 

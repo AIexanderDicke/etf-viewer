@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { FundInfo, Portfolio, Position, PositionInput } from "../shared/types.ts";
+import type { FundInfo, Portfolio, Position, PositionInput } from "../../shared/types.ts";
 
 const apiMock = vi.hoisted(() => ({
   listPortfolios: vi.fn(),
@@ -13,11 +13,11 @@ const apiMock = vi.hoisted(() => ({
   getFund: vi.fn(),
 }));
 
-vi.mock("./api.ts", () => ({ api: apiMock }));
+vi.mock("../../src/api.ts", () => ({ api: apiMock }));
 
 const chartMock = vi.hoisted(() => ({ update: vi.fn(), resize: vi.fn(), destroy: vi.fn() }));
 
-vi.mock("./chart.ts", () => ({
+vi.mock("../../src/chart.ts", () => ({
   createAllocationChart: () => chartMock,
   createDoughnut: () => chartMock,
   allocationColors: (allocations: unknown[]) => allocations.map(() => "#000000"),
@@ -84,7 +84,7 @@ function flush(): Promise<void> {
 }
 
 async function mount(): Promise<void> {
-  const { mountApp } = await import("./ui.ts");
+  const { mountApp } = await import("../../src/ui.ts");
   mountApp(byId("app"));
   await flush();
   await flush();

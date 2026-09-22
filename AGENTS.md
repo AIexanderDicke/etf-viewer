@@ -58,10 +58,15 @@ src/               frontend
   format.ts        euro / percent / integer formatters
   style.css        theme
 index.html         Vite entry document
+tests/             all `*.test.ts`, mirroring the source layout
+  shared/            tests for shared/
+  server/            tests for server/
+  src/               tests for src/
 ```
 
-Tests are colocated `*.test.ts` next to the source they cover. Tooling config
-lives in `biome.json`, `.prettierrc.json` and `vitest.config.ts`.
+Tests live under `tests/`, mirroring the `shared/` / `server/` / `src/` layout;
+they import production code with relative `../../…` paths. Tooling config lives
+in `biome.json`, `.prettierrc.json`, `vitest.config.ts` and `tsconfig.test.json`.
 
 ## Scripts
 
@@ -75,7 +80,7 @@ npm run db:clear       # delete all portfolios, positions and cached funds (--ca
 npm run preview        # serve the production build
 npm test               # vitest run
 npm run test:coverage  # vitest + v8 coverage with a 90% gate (writes coverage/)
-npm run typecheck      # frontend (tsconfig) + backend (tsconfig.server) TypeScript
+npm run typecheck      # frontend (tsconfig) + backend (tsconfig.server) + tests (tsconfig.test)
 npm run type-check     # alias of typecheck
 npm run lint           # biome lint (lint:fix to apply safe fixes)
 npm run format         # prettier --write (format:check to verify)
@@ -160,7 +165,8 @@ valid ISIN for ETFs, and a non-negative `interestRate` when present.
   `ALTER TABLE` migrations for new columns (see `addColumn` in `db.ts`; `bank`
   and `interest_rate` were both added this way). Changing a table means adding a
   real migration — never rely on `CREATE TABLE` alone.
-- **Tests**: colocated `*.test.ts`. Use `createDb(":memory:")` for repo tests;
+- **Tests**: all `*.test.ts` live under `tests/` (never colocated, so they can
+  be excluded from the Docker image). Use `createDb(":memory:")` for repo tests;
   inject a fake `fetch`/providers rather than hitting the network.
 - Fund cache is keyed by ISIN; if you change the `FundInfo` shape, clear
   `data/` (or the `fund_cache` table) or old payloads will lack new fields.

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { FundInfo } from "../shared/types.ts";
+import type { FundInfo } from "../../shared/types.ts";
 
 const apiMock = vi.hoisted(() => ({
   listPositions: vi.fn(),
@@ -9,7 +9,7 @@ const apiMock = vi.hoisted(() => ({
   getFund: vi.fn(),
 }));
 
-vi.mock("./api.ts", () => ({ api: apiMock }));
+vi.mock("../../src/api.ts", () => ({ api: apiMock }));
 
 const ISIN = "IE00B4L5Y983";
 
@@ -19,7 +19,7 @@ function fund(name: string): FundInfo {
 
 async function freshFunds() {
   vi.resetModules();
-  return import("./funds.ts");
+  return import("../../src/funds.ts");
 }
 
 describe("fund state", () => {
