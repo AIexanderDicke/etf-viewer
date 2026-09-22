@@ -56,6 +56,8 @@ src/               frontend
   calc.ts          re-exports shared portfolio/ISIN helpers
   chart.ts         Chart.js doughnut factories
   format.ts        euro / percent / integer formatters
+  export.ts        allocation PNG export (chart + allocation table)
+  transfer.ts      portfolio JSON export / import
   style.css        theme
 index.html         Vite entry document
 tests/             all `*.test.ts`, mirroring the source layout
