@@ -188,10 +188,14 @@ valid ISIN for ETFs, and a non-negative `interestRate` when present.
   `staticDir`; `server/index.ts` passes `dist/` when `dist/index.html` exists, so
   one production container serves both the SPA and `/api`. In dev it stays unset
   and Vite serves the UI.
-- **Schema is created with `CREATE TABLE IF NOT EXISTS`**, with explicit
-  `ALTER TABLE` migrations for new columns (see `addColumn` in `db.ts`; `bank`
-  and `interest_rate` were both added this way). Changing a table means adding a
-  real migration — never rely on `CREATE TABLE` alone.
+- **Every database change ships with a migration (mandatory).** Schema is
+  created with `CREATE TABLE IF NOT EXISTS`, and any change to persisted data —
+  a new table, column or index, a backfill, a rename — must add an idempotent
+  migration to `migrate()` in `server/db.ts` that upgrades existing databases
+  (see `addColumn`; `bank`, `interest_rate` and `portfolio_id` were all added
+  this way). Never rely on `CREATE TABLE` alone, and never assume a fresh
+  database. Add a test under `tests/server/db.test.ts` that seeds the old shape
+  and asserts the migration leaves no data orphaned.
 - **Tests**: all `*.test.ts` live under `tests/` (never colocated, so they can
   be excluded from the Docker image). Use `createDb(":memory:")` for repo tests;
   inject a fake `fetch`/providers rather than hitting the network.
