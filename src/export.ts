@@ -71,7 +71,7 @@ export function exportPortfolioPng(data: ExportData): void {
   ctx.fillText(`Total ${data.total}`, PADDING, PADDING + 34);
 
   const chartX = (WIDTH - CHART_SIZE) / 2;
-  ctx.drawImage(data.chart, chartX, chartY, CHART_SIZE, CHART_SIZE);
+  drawRoundChart(ctx, data.chart, chartX, chartY);
 
   const centerY = chartY + CHART_SIZE / 2;
   ctx.textAlign = "center";
@@ -86,6 +86,25 @@ export function exportPortfolioPng(data: ExportData): void {
   drawTable(ctx, data.rows, tableY);
 
   triggerPngDownload(canvas, exportFilename(data.title));
+}
+
+/**
+ * The live canvas is wider than it is tall, so scaling it into a square would
+ * squash the doughnut into an ellipse. Crop a centred square first: the
+ * doughnut always fits inside the shorter side, so nothing is cut off and it
+ * stays perfectly round.
+ */
+function drawRoundChart(
+  ctx: CanvasRenderingContext2D,
+  chart: HTMLCanvasElement,
+  x: number,
+  y: number,
+): void {
+  if (chart.width === 0 || chart.height === 0) return;
+  const side = Math.min(chart.width, chart.height);
+  const sx = (chart.width - side) / 2;
+  const sy = (chart.height - side) / 2;
+  ctx.drawImage(chart, sx, sy, side, side, x, y, CHART_SIZE, CHART_SIZE);
 }
 
 function rowHeight(row: ExportRow): number {
