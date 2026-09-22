@@ -15,7 +15,12 @@ export function portfoliosRouter(repo: PortfolioRepo): Router {
   });
 
   router.post("/", (req, res) => {
-    res.status(201).json(repo.create(readName(req.body) ?? ""));
+    const name = readName(req.body) ?? "";
+    if (name.trim() && repo.findByName(name)) {
+      res.status(409).json({ error: "portfolio name already in use" });
+      return;
+    }
+    res.status(201).json(repo.create(name));
   });
 
   router.patch("/:id", (req, res) => {
@@ -27,6 +32,10 @@ export function portfoliosRouter(repo: PortfolioRepo): Router {
     const name = readName(req.body);
     if (name === undefined) {
       res.status(400).json({ error: "name must be a string" });
+      return;
+    }
+    if (name.trim() && repo.findByName(name, existing.id)) {
+      res.status(409).json({ error: "portfolio name already in use" });
       return;
     }
     res.json(repo.update(existing.id, { name }));

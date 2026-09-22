@@ -101,10 +101,21 @@ export function ensureDefaultPortfolio(db: Db): Portfolio {
 export interface PortfolioRepo {
   list(): Portfolio[];
   get(id: string): Portfolio | null;
+  /** Case-insensitive lookup by trimmed name, optionally ignoring one id. */
+  findByName(name: string, excludeId?: string): Portfolio | null;
   create(name?: string): Portfolio;
   update(id: string, patch: { name: string }): Portfolio | null;
   /** The default portfolio (oldest, seeded on demand). */
   default(): Portfolio;
+}
+
+/** The smallest unused "Portfolio N" name. */
+function nextDefaultPortfolioName(db: Db): string {
+  const rows = db.prepare("SELECT name FROM portfolios").all() as Array<{ name: string }>;
+  const taken = new Set(rows.map((row) => row.name.trim().toLowerCase()));
+  let index = 1;
+  while (taken.has(`portfolio ${index}`)) index += 1;
+  return `Portfolio ${index}`;
 }
 
 export function createPortfolioRepo(db: Db): PortfolioRepo {
@@ -122,11 +133,24 @@ export function createPortfolioRepo(db: Db): PortfolioRepo {
       return row ? toPortfolio(row) : null;
     },
 
+    findByName(name, excludeId) {
+      const trimmed = name.trim();
+      if (!trimmed) return null;
+      const row = db
+        .prepare(
+          `SELECT * FROM portfolios
+           WHERE lower(name) = lower(?) AND id != ?
+           LIMIT 1`,
+        )
+        .get(trimmed, excludeId ?? "") as PortfolioRow | undefined;
+      return row ? toPortfolio(row) : null;
+    },
+
     create(name = "") {
       const now = new Date().toISOString();
       const portfolio: Portfolio = {
         id: crypto.randomUUID(),
-        name: name.trim(),
+        name: name.trim() || nextDefaultPortfolioName(db),
         createdAt: now,
         updatedAt: now,
       };

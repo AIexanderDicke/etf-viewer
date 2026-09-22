@@ -132,7 +132,7 @@ describe("HTTP API", () => {
       method: "POST",
       body: JSON.stringify({}),
     });
-    expect(unnamed.body.name).toBe("");
+    expect(unnamed.body.name).toBe("Portfolio 1");
 
     const renamed = await json<Portfolio>(`/api/portfolios/${created.body.id}`, {
       method: "PATCH",
@@ -140,6 +140,18 @@ describe("HTTP API", () => {
     });
     expect(renamed.status).toBe(200);
     expect(renamed.body.name).toBe("Pension");
+
+    const duplicate = await json<{ error: string }>("/api/portfolios", {
+      method: "POST",
+      body: JSON.stringify({ name: "pension" }),
+    });
+    expect(duplicate.status).toBe(409);
+
+    const duplicateRename = await json<{ error: string }>(`/api/portfolios/${renamed.body.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name: "Portfolio 1" }),
+    });
+    expect(duplicateRename.status).toBe(409);
 
     const missing = await json<{ error: string }>("/api/portfolios/nope", {
       method: "PATCH",

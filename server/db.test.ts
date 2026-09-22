@@ -118,6 +118,19 @@ describe("portfolio repo", () => {
     expect(renamed?.name).toBe("Pension");
     expect(repo.update("nope", { name: "x" })).toBeNull();
   });
+
+  it("auto-numbers unnamed portfolios and finds names case-insensitively", () => {
+    const db = createDb(":memory:");
+    const repo = createPortfolioRepo(db);
+
+    expect(repo.create().name).toBe("Portfolio 1");
+    expect(repo.create("").name).toBe("Portfolio 2");
+
+    const named = repo.create("Core");
+    expect(repo.findByName(" core ")?.id).toBe(named.id);
+    expect(repo.findByName("Core", named.id)).toBeNull();
+    expect(repo.findByName("")).toBeNull();
+  });
 });
 
 describe("migrations", () => {
