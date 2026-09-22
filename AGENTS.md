@@ -57,7 +57,7 @@ src/               frontend
   chart.ts         Chart.js doughnut factories
   format.ts        euro / percent / integer formatters
   export.ts        allocation PNG export (chart + allocation table)
-  transfer.ts      portfolio JSON export / import
+  transfer.ts      portfolio JSON export / import (import creates a new portfolio)
   style.css        theme
 index.html         Vite entry document
 tests/             all `*.test.ts`, mirroring the source layout
