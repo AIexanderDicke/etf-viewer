@@ -1,0 +1,16 @@
+.git
+.gitignore
+.env
+.env.*
+node_modules
+dist
+coverage
+data
+tests
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+Dockerfile
+.dockerignore
+README.md
+AGENTS.md

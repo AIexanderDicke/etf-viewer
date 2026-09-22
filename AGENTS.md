@@ -62,6 +62,8 @@ tests/             all `*.test.ts`, mirroring the source layout
   shared/            tests for shared/
   server/            tests for server/
   src/               tests for src/
+Dockerfile         slim multi-stage production image
+.dockerignore      keeps tests, data and build output out of the image context
 ```
 
 Tests live under `tests/`, mirroring the `shared/` / `server/` / `src/` layout;
@@ -93,6 +95,27 @@ for anything touching the frontend.
 
 Linting is **Biome** (typescript-eslint does not support the native TypeScript 7
 compiler this repo uses) and formatting is **Prettier** (`printWidth: 100`).
+
+## Docker
+
+`Dockerfile` is a slim multi-stage build on `node:24-alpine`:
+
+1. **build** installs all deps, typechecks the production tsconfigs and runs
+   `vite build`, then `npm prune --omit=dev`.
+2. **runtime** copies only `node_modules`, `dist/`, `shared/`, `server/` and
+   `package.json`, then starts `node server/index.ts`.
+
+Node runs the TypeScript backend directly (type stripping), so there is no
+compiled server and `tsx` never ships. Tests are never copied into the image
+(explicit `COPY` plus `.dockerignore`). The SQLite database lives on a volume at
+`/data` (`DB_FILE=/data/etf-viewer.sqlite`), and the image defaults to
+`NODE_ENV=production` and `PORT=3000`. The process runs as the non-root `node`
+user and serves the built SPA and `/api` from one port.
+
+```bash
+docker build -t etf-viewer .
+docker run --rm -p 3000:3000 -v etf-viewer-data:/data etf-viewer
+```
 
 ## Configuration
 
