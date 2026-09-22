@@ -9,6 +9,7 @@ import type {
 import type { PositionPatch } from "./api.ts";
 import { isValidIsin, summarize } from "./calc.ts";
 import { allocationColors, createAllocationChart } from "./chart.ts";
+import { exportPortfolioPng, type ExportRow } from "./export.ts";
 import { euro, integer, percent } from "./format.ts";
 import * as funds from "./funds.ts";
 import { createLookThroughView } from "./lookthrough.ts";
@@ -82,7 +83,17 @@ const TEMPLATE = `
       <section class="card">
         <div class="card-head">
           <h2>Allocation</h2>
-          <span class="card-meta" id="allocation-meta"></span>
+          <div class="card-head-actions">
+            <span class="card-meta" id="allocation-meta"></span>
+            <button type="button" class="ghost export-button" id="export-png" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 3v12" />
+                <path d="m7 10 5 5 5-5" />
+                <path d="M5 21h14" />
+              </svg>
+              Export PNG
+            </button>
+          </div>
         </div>
         <ul class="legend" id="allocation-legend"></ul>
         <p class="empty-hint" id="legend-empty" hidden>No positions yet.</p>
@@ -181,6 +192,7 @@ export function mountApp(root: HTMLElement): void {
   const legendEl = get<HTMLUListElement>("allocation-legend");
   const legendEmpty = get<HTMLParagraphElement>("legend-empty");
   const allocationMeta = get<HTMLSpanElement>("allocation-meta");
+  const exportButton = get<HTMLButtonElement>("export-png");
   const positionsMeta = get<HTMLSpanElement>("positions-meta");
   const statusEl = get<HTMLParagraphElement>("app-status");
   const tabsEl = get<HTMLElement>("tabs");
@@ -423,6 +435,18 @@ export function mountApp(root: HTMLElement): void {
 
   cancelEdit.addEventListener("click", resetForm);
 
+  exportButton.addEventListener("click", () => {
+    const state = store.getState();
+    const summary = summarize(state.positions);
+    const active = state.portfolios.find((entry) => entry.id === state.activePortfolioId);
+    exportPortfolioPng({
+      title: active?.name.trim() || "Portfolio",
+      total: euro.format(summary.total),
+      chart: chartCanvas,
+      rows: legendEntries(summary),
+    });
+  });
+
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     errorEl.textContent = "";
@@ -554,6 +578,7 @@ export function mountApp(root: HTMLElement): void {
     allocationMeta.textContent = hasAllocations
       ? `${summary.allocations.length} ${summary.allocations.length === 1 ? "position" : "positions"}`
       : "";
+    exportButton.disabled = !hasAllocations;
     positionsMeta.textContent =
       state.status === "ready" && state.positions.length > 0
         ? `${state.positions.length} ${state.positions.length === 1 ? "position" : "positions"}`
@@ -570,33 +595,39 @@ export function mountApp(root: HTMLElement): void {
     lookThroughView.render(state.positions, fundsByIsin);
   }
 
-  function renderLegend(summary: PortfolioSummary): void {
+  function legendEntries(summary: PortfolioSummary): ExportRow[] {
     const colors = allocationColors(summary.allocations);
-    legendEl.replaceChildren(
-      ...summary.allocations.map((allocation, index) => {
-        const { position } = allocation;
-        const isCash = position.kind === "cash";
-        const info = isCash ? undefined : funds.getFundState(position.isin).info;
+    return summary.allocations.map((allocation, index) => {
+      const { position } = allocation;
+      const isCash = position.kind === "cash";
+      const info = isCash ? undefined : funds.getFundState(position.isin).info;
+      return {
+        label: isCash
+          ? position.bank
+            ? `Cash · ${position.bank}`
+            : "Cash"
+          : position.name || info?.name || position.isin,
+        meta: legendMeta(position.kind, position.isin, position.interestRate, info),
+        amount: allocation.amount,
+        share: allocation.share,
+        color: colors[index] ?? "",
+      };
+    });
+  }
 
+  function renderLegend(summary: PortfolioSummary): void {
+    legendEl.replaceChildren(
+      ...legendEntries(summary).map((entry) => {
         const dot = el("span", "legend-dot");
-        dot.style.setProperty("--dot", colors[index]);
+        dot.style.setProperty("--dot", entry.color);
 
         const label = el("div", "legend-label");
-        label.append(
-          document.createTextNode(
-            isCash
-              ? position.bank
-                ? `Cash · ${position.bank}`
-                : "Cash"
-              : position.name || info?.name || position.isin,
-          ),
-        );
-        const meta = legendMeta(position.kind, position.isin, position.interestRate, info);
-        if (meta) label.append(el("span", "legend-sub", meta));
+        label.append(document.createTextNode(entry.label));
+        if (entry.meta) label.append(el("span", "legend-sub", entry.meta));
 
         const values = el("div", "legend-values");
-        values.append(el("span", "legend-value", euro.format(allocation.amount)));
-        values.append(el("span", "legend-share", `${percent.format(allocation.share * 100)}%`));
+        values.append(el("span", "legend-value", euro.format(entry.amount)));
+        values.append(el("span", "legend-share", `${percent.format(entry.share * 100)}%`));
 
         const item = el("li", "legend-item");
         item.append(dot, label, values);

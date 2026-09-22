@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FundInfo, Portfolio, Position, PositionInput } from "../../shared/types.ts";
+import { euro } from "../../src/format.ts";
 
 const apiMock = vi.hoisted(() => ({
   listPortfolios: vi.fn(),
@@ -22,6 +23,10 @@ vi.mock("../../src/chart.ts", () => ({
   createDoughnut: () => chartMock,
   allocationColors: (allocations: unknown[]) => allocations.map(() => "#000000"),
 }));
+
+const exportMock = vi.hoisted(() => ({ exportPortfolioPng: vi.fn() }));
+
+vi.mock("../../src/export.ts", () => exportMock);
 
 const WORLD = "IE00B4L5Y983";
 const EM = "IE00BKM4GZ66";
@@ -130,6 +135,7 @@ describe("mountApp", () => {
     expect(byId("chart-empty").hidden).toBe(false);
     expect(byId("legend-empty").hidden).toBe(false);
     expect(byId("allocation-meta").textContent).toBe("");
+    expect((byId("export-png") as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("tracks the active tab with aria-selected", async () => {
@@ -255,6 +261,47 @@ describe("mountApp", () => {
     await flush();
 
     expect(apiMock.removePosition).toHaveBeenCalledWith("etf-1");
+  });
+
+  it("exports the doughnut and allocation table as a PNG", async () => {
+    apiMock.listPortfolios.mockResolvedValue([portfolio("portfolio-1", "Core")]);
+    apiMock.listPositions.mockResolvedValue([
+      position({ id: "etf-1", kind: "etf", isin: WORLD, amount: 6000 }),
+      position({ id: "cash-1", kind: "cash", amount: 2000, bank: "ING", interestRate: 2.5 }),
+    ]);
+    await mount();
+    await flush();
+
+    const button = byId("export-png") as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    button.click();
+
+    expect(exportMock.exportPortfolioPng).toHaveBeenCalledTimes(1);
+    const payload = exportMock.exportPortfolioPng.mock.calls[0]?.[0];
+    expect(payload.title).toBe("Core");
+    expect(payload.total).toBe(euro.format(8000));
+    expect(payload.chart).toBe(byId("allocation-chart"));
+    expect(payload.rows).toHaveLength(2);
+    expect(payload.rows[0]).toMatchObject({
+      label: "iShares Core MSCI World UCITS ETF",
+      color: "#000000",
+      amount: 6000,
+    });
+    expect(payload.rows[1]).toMatchObject({ label: "Cash · ING", amount: 2000 });
+  });
+
+  it("falls back to a generic title when the portfolio is unnamed", async () => {
+    apiMock.listPositions.mockResolvedValue([
+      position({ id: "cash-1", kind: "cash", amount: 2000 }),
+    ]);
+    await mount();
+    await flush();
+
+    (byId("export-png") as HTMLButtonElement).click();
+
+    expect(exportMock.exportPortfolioPng).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Portfolio" }),
+    );
   });
 
   it("expands and collapses fund details", async () => {

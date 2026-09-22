@@ -14,6 +14,7 @@ export default defineConfig({
         // Canvas rendering is not exercisable under jsdom; its pure helpers are
         // covered indirectly through the UI integration test.
         "src/chart.ts",
+        "src/export.ts",
         "src/vite-env.d.ts",
         // Bootstrap side effects (listen, process signals, CLI) are not unit-testable.
         "server/index.ts",
