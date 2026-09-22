@@ -14,6 +14,12 @@ import { euro, integer, percent } from "./format.ts";
 import * as funds from "./funds.ts";
 import { createLookThroughView } from "./lookthrough.ts";
 import * as store from "./store.ts";
+import {
+  buildPortfolioExport,
+  downloadJson,
+  parsePortfolioImport,
+  portfolioExportFilename,
+} from "./transfer.ts";
 
 type TabId = "portfolio" | "lookthrough" | "config";
 
@@ -145,7 +151,16 @@ const TEMPLATE = `
       <section class="card">
         <div class="card-head">
           <h2>Positions</h2>
-          <span class="card-meta" id="positions-meta"></span>
+          <div class="card-head-actions">
+            <span class="card-meta" id="positions-meta"></span>
+            <button type="button" class="ghost export-button" id="export-json" disabled>
+              Export JSON
+            </button>
+            <button type="button" class="ghost export-button" id="import-json-button" disabled>
+              Import JSON
+            </button>
+            <input type="file" id="import-json" accept="application/json,.json" hidden />
+          </div>
         </div>
         <table class="positions">
           <thead>
@@ -194,6 +209,9 @@ export function mountApp(root: HTMLElement): void {
   const allocationMeta = get<HTMLSpanElement>("allocation-meta");
   const exportButton = get<HTMLButtonElement>("export-png");
   const positionsMeta = get<HTMLSpanElement>("positions-meta");
+  const exportJsonButton = get<HTMLButtonElement>("export-json");
+  const importJsonButton = get<HTMLButtonElement>("import-json-button");
+  const importJsonInput = get<HTMLInputElement>("import-json");
   const statusEl = get<HTMLParagraphElement>("app-status");
   const tabsEl = get<HTMLElement>("tabs");
   const portfolioSelect = get<HTMLSelectElement>("portfolio-select");
@@ -447,6 +465,30 @@ export function mountApp(root: HTMLElement): void {
     });
   });
 
+  exportJsonButton.addEventListener("click", () => {
+    const state = store.getState();
+    const active = state.portfolios.find((entry) => entry.id === state.activePortfolioId);
+    const name = active?.name.trim() || "Portfolio";
+    downloadJson(buildPortfolioExport(name, state.positions), portfolioExportFilename(name));
+  });
+
+  importJsonButton.addEventListener("click", () => importJsonInput.click());
+
+  importJsonInput.addEventListener("change", () => {
+    const file = importJsonInput.files?.[0];
+    importJsonInput.value = "";
+    if (file) void importPositions(file);
+  });
+
+  async function importPositions(file: File): Promise<void> {
+    errorEl.textContent = "";
+    try {
+      await store.importPositions(parsePortfolioImport(await file.text()));
+    } catch (error) {
+      errorEl.textContent = error instanceof Error ? error.message : "Could not import the file.";
+    }
+  }
+
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     errorEl.textContent = "";
@@ -583,6 +625,8 @@ export function mountApp(root: HTMLElement): void {
       state.status === "ready" && state.positions.length > 0
         ? `${state.positions.length} ${state.positions.length === 1 ? "position" : "positions"}`
         : "";
+    exportJsonButton.disabled = state.positions.length === 0;
+    importJsonButton.disabled = !state.activePortfolioId;
     listBody.replaceChildren(...summary.allocations.flatMap(renderRow));
     renderLegend(summary);
 

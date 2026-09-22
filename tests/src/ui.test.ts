@@ -28,6 +28,15 @@ const exportMock = vi.hoisted(() => ({ exportPortfolioPng: vi.fn() }));
 
 vi.mock("../../src/export.ts", () => exportMock);
 
+const transferMock = vi.hoisted(() => ({
+  buildPortfolioExport: vi.fn(),
+  portfolioExportFilename: vi.fn(),
+  parsePortfolioImport: vi.fn(),
+  downloadJson: vi.fn(),
+}));
+
+vi.mock("../../src/transfer.ts", () => transferMock);
+
 const WORLD = "IE00B4L5Y983";
 const EM = "IE00BKM4GZ66";
 
@@ -112,6 +121,13 @@ function savePortfolioName(value: string): void {
   byId("save-portfolio").click();
 }
 
+function selectFile(name: string, content: string): void {
+  const input = byId("import-json") as HTMLInputElement;
+  const file = new File([content], name, { type: "application/json" });
+  Object.defineProperty(input, "files", { value: [file], configurable: true });
+  input.dispatchEvent(new Event("change"));
+}
+
 describe("mountApp", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -125,6 +141,9 @@ describe("mountApp", () => {
     apiMock.updatePosition.mockResolvedValue(position({}));
     apiMock.removePosition.mockResolvedValue(undefined);
     apiMock.getFund.mockResolvedValue(fundInfo());
+    transferMock.buildPortfolioExport.mockReturnValue({ marker: true });
+    transferMock.portfolioExportFilename.mockReturnValue("core-positions.json");
+    transferMock.parsePortfolioImport.mockReturnValue([{ kind: "cash", amount: 10 }]);
   });
 
   it("renders the empty portfolio state", async () => {
@@ -136,6 +155,8 @@ describe("mountApp", () => {
     expect(byId("legend-empty").hidden).toBe(false);
     expect(byId("allocation-meta").textContent).toBe("");
     expect((byId("export-png") as HTMLButtonElement).disabled).toBe(true);
+    expect((byId("export-json") as HTMLButtonElement).disabled).toBe(true);
+    expect((byId("import-json-button") as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("tracks the active tab with aria-selected", async () => {
@@ -302,6 +323,64 @@ describe("mountApp", () => {
     expect(exportMock.exportPortfolioPng).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Portfolio" }),
     );
+  });
+
+  it("downloads the active portfolio as JSON", async () => {
+    apiMock.listPortfolios.mockResolvedValue([portfolio("portfolio-1", "Core")]);
+    const positions = [position({ id: "cash-1", kind: "cash", amount: 2000 })];
+    apiMock.listPositions.mockResolvedValue(positions);
+    await mount();
+    await flush();
+
+    byId("export-json").click();
+
+    expect(transferMock.buildPortfolioExport).toHaveBeenCalledWith(
+      "Core",
+      expect.arrayContaining([expect.objectContaining({ id: "cash-1" })]),
+    );
+    expect(transferMock.downloadJson).toHaveBeenCalledWith({ marker: true }, "core-positions.json");
+  });
+
+  it("imports positions from a JSON file", async () => {
+    await mount();
+    transferMock.parsePortfolioImport.mockReturnValue([
+      { kind: "cash", isin: "", name: "", bank: "ING", amount: 500 },
+    ]);
+    apiMock.addPosition.mockResolvedValue(position({}));
+
+    selectFile("core.json", "{}");
+    await flush();
+
+    expect(transferMock.parsePortfolioImport).toHaveBeenCalledWith("{}");
+    expect(apiMock.addPosition).toHaveBeenCalledWith(
+      { kind: "cash", isin: "", name: "", bank: "ING", amount: 500 },
+      "portfolio-1",
+    );
+  });
+
+  it("reports an invalid import file", async () => {
+    await mount();
+    transferMock.parsePortfolioImport.mockImplementation(() => {
+      throw new Error("That file is not valid JSON.");
+    });
+
+    selectFile("broken.json", "nope");
+    await flush();
+
+    expect(byId("form-error").textContent).toContain("not valid JSON");
+    expect(apiMock.addPosition).not.toHaveBeenCalled();
+  });
+
+  it("ignores an import with no file selected", async () => {
+    await mount();
+    const fileInput = byId("import-json") as HTMLInputElement;
+    Object.defineProperty(fileInput, "files", { value: [], configurable: true });
+
+    fileInput.dispatchEvent(new Event("change"));
+    await flush();
+
+    expect(transferMock.parsePortfolioImport).not.toHaveBeenCalled();
+    expect(apiMock.addPosition).not.toHaveBeenCalled();
   });
 
   it("expands and collapses fund details", async () => {

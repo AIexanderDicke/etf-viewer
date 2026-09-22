@@ -118,6 +118,16 @@ export async function addPosition(input: PositionInput): Promise<void> {
   await refresh();
 }
 
+/** Adds many positions to the active portfolio, refreshing once at the end. */
+export async function importPositions(inputs: PositionInput[]): Promise<void> {
+  const portfolioId = state.activePortfolioId;
+  if (!portfolioId) throw new Error("No active portfolio");
+  for (const input of inputs) {
+    await api.addPosition(input, portfolioId);
+  }
+  await refresh();
+}
+
 export async function updatePosition(id: string, patch: PositionPatch): Promise<void> {
   await api.updatePosition(id, patch);
   await refresh();

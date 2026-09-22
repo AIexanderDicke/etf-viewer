@@ -168,6 +168,41 @@ describe("store", () => {
     );
   });
 
+  it("imports several positions with a single refresh", async () => {
+    const store = await freshStore();
+    await store.init();
+    apiMock.listPositions.mockClear();
+    apiMock.listPositions.mockResolvedValue([position("p2", 200), position("p3", 300)]);
+
+    await store.importPositions([
+      { kind: "cash", amount: 200 },
+      { kind: "cash", amount: 300 },
+    ]);
+
+    expect(apiMock.addPosition).toHaveBeenNthCalledWith(
+      1,
+      { kind: "cash", amount: 200 },
+      "portfolio-1",
+    );
+    expect(apiMock.addPosition).toHaveBeenNthCalledWith(
+      2,
+      { kind: "cash", amount: 300 },
+      "portfolio-1",
+    );
+    expect(apiMock.listPositions).toHaveBeenCalledTimes(1);
+    expect(store.getState().positions).toHaveLength(2);
+  });
+
+  it("refuses to import without an active portfolio", async () => {
+    const store = await freshStore();
+    apiMock.listPortfolios.mockResolvedValue([]);
+    await store.init();
+
+    await expect(store.importPositions([{ kind: "cash", amount: 1 }])).rejects.toThrow(
+      "No active portfolio",
+    );
+  });
+
   it("removes a position then refreshes", async () => {
     const store = await freshStore();
     await store.init();
