@@ -102,6 +102,11 @@ function submitForm(): void {
   );
 }
 
+function savePortfolioName(value: string): void {
+  input("portfolio-name").value = value;
+  byId("save-portfolio").click();
+}
+
 describe("mountApp", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -109,7 +114,6 @@ describe("mountApp", () => {
     window.localStorage.clear();
     document.body.innerHTML = '<div id="app"></div>';
     window.confirm = vi.fn(() => true);
-    window.prompt = vi.fn(() => null);
     apiMock.listPortfolios.mockResolvedValue([portfolio("portfolio-1")]);
     apiMock.listPositions.mockResolvedValue([]);
     apiMock.addPosition.mockResolvedValue(position({}));
@@ -173,31 +177,63 @@ describe("mountApp", () => {
     expect(apiMock.listPositions).toHaveBeenCalledWith("portfolio-2");
   });
 
-  it("names the current portfolio and starts a new one", async () => {
+  it("names the current portfolio from the name field", async () => {
     apiMock.renamePortfolio.mockResolvedValue(portfolio("portfolio-1", "Retirement"));
-    apiMock.createPortfolio.mockResolvedValue(portfolio("portfolio-2"));
     await mount();
 
-    window.prompt = vi.fn(() => "Retirement");
-    byId("new-portfolio").click();
-    await flush();
+    savePortfolioName("Retirement");
     await flush();
 
     expect(apiMock.renamePortfolio).toHaveBeenCalledWith("portfolio-1", "Retirement");
+  });
+
+  it("starts a new portfolio with an auto-numbered default name", async () => {
+    apiMock.createPortfolio.mockResolvedValue(portfolio("portfolio-2", "Portfolio 1"));
+    await mount();
+
+    byId("new-portfolio").click();
+    await flush();
+    await flush();
+
     expect(apiMock.createPortfolio).toHaveBeenCalledWith("");
     expect(apiMock.listPositions).toHaveBeenCalledWith("portfolio-2");
     expect((byId("portfolio-select") as HTMLSelectElement).value).toBe("portfolio-2");
+    expect(byId("portfolio-warning").hidden).toBe(false);
   });
 
-  it("does not start a new portfolio when the prompt is cancelled", async () => {
+  it("rejects a duplicate portfolio name", async () => {
+    apiMock.listPortfolios.mockResolvedValue([
+      portfolio("portfolio-1", "Core"),
+      portfolio("portfolio-2", "Retirement"),
+    ]);
     await mount();
 
-    window.prompt = vi.fn(() => null);
-    byId("new-portfolio").click();
+    const name = input("portfolio-name");
+    expect(name.value).toBe("Core");
+
+    savePortfolioName("retirement");
     await flush();
 
-    expect(apiMock.createPortfolio).not.toHaveBeenCalled();
     expect(apiMock.renamePortfolio).not.toHaveBeenCalled();
+    expect(name.value).toBe("Core");
+    expect(byId("portfolio-warning").hidden).toBe(false);
+    expect(byId("portfolio-warning").textContent).toContain("already used");
+  });
+
+  it("warns while the active portfolio uses the default name", async () => {
+    apiMock.listPortfolios.mockResolvedValue([portfolio("portfolio-1", "Core")]);
+    await mount();
+
+    const warning = byId("portfolio-warning");
+    expect(warning.hidden).toBe(true);
+    expect(input("portfolio-name").classList.contains("is-default")).toBe(false);
+
+    apiMock.renamePortfolio.mockResolvedValue(portfolio("portfolio-1", "Portfolio 3"));
+    savePortfolioName("Portfolio 3");
+    await flush();
+
+    expect(warning.hidden).toBe(false);
+    expect(input("portfolio-name").classList.contains("is-default")).toBe(true);
   });
 
   it("renders positions, legend metadata and removes one", async () => {

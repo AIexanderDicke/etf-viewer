@@ -16,6 +16,14 @@ import * as store from "./store.ts";
 
 type TabId = "portfolio" | "lookthrough" | "config";
 
+const UNNAMED_PORTFOLIO_LABEL = "Unnamed portfolio";
+const DEFAULT_PORTFOLIO_NAME = /^Portfolio \d+$/i;
+
+function isDefaultPortfolioName(name: string): boolean {
+  const trimmed = name.trim();
+  return !trimmed || DEFAULT_PORTFOLIO_NAME.test(trimmed);
+}
+
 const TEMPLATE = `
   <header class="app-header">
     <div class="brand">
@@ -30,11 +38,24 @@ const TEMPLATE = `
       </div>
     </div>
     <div class="portfolio-controls">
-      <label class="portfolio-picker">
+      <div class="portfolio-picker">
         <span class="portfolio-picker-label">Portfolio</span>
-        <select id="portfolio-select" aria-label="Select portfolio"></select>
-      </label>
-      <button type="button" class="ghost" id="new-portfolio">Name &amp; start new</button>
+        <div class="portfolio-input-group">
+          <select id="portfolio-select" aria-label="Select portfolio"></select>
+          <input id="portfolio-name" type="text" placeholder="Portfolio name" autocomplete="off" spellcheck="false" aria-label="Portfolio name" />
+          <button type="button" class="ghost icon-button" id="save-portfolio" aria-label="Save portfolio name" title="Save name">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+              <path d="M17 21v-8H7v8" />
+              <path d="M7 3v5h8" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="portfolio-control-footer">
+        <p class="portfolio-warning" id="portfolio-warning" role="status" hidden></p>
+        <button type="button" class="portfolio-new" id="new-portfolio">+ Start new portfolio</button>
+      </div>
     </div>
   </header>
 
@@ -164,6 +185,9 @@ export function mountApp(root: HTMLElement): void {
   const statusEl = get<HTMLParagraphElement>("app-status");
   const tabsEl = get<HTMLElement>("tabs");
   const portfolioSelect = get<HTMLSelectElement>("portfolio-select");
+  const portfolioName = get<HTMLInputElement>("portfolio-name");
+  const portfolioWarning = get<HTMLParagraphElement>("portfolio-warning");
+  const savePortfolioButton = get<HTMLButtonElement>("save-portfolio");
   const newPortfolioButton = get<HTMLButtonElement>("new-portfolio");
   let portfolioSignature = "";
 
@@ -202,6 +226,67 @@ export function mountApp(root: HTMLElement): void {
     void startNewPortfolio();
   });
 
+  savePortfolioButton.addEventListener("click", () => {
+    void savePortfolioName();
+  });
+
+  portfolioName.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    void savePortfolioName();
+  });
+
+  portfolioName.addEventListener("input", () => {
+    portfolioName.classList.toggle("is-default", isDefaultPortfolioName(portfolioName.value));
+  });
+
+  async function savePortfolioName(): Promise<void> {
+    const state = store.getState();
+    const active = state.portfolios.find((entry) => entry.id === state.activePortfolioId);
+    if (!active) return;
+    const name = portfolioName.value.trim();
+    if (!name || name === active.name) {
+      portfolioName.value = active.name;
+      renderPortfolioMessage(state);
+      return;
+    }
+    const duplicate = state.portfolios.some(
+      (entry) => entry.id !== active.id && entry.name.trim().toLowerCase() === name.toLowerCase(),
+    );
+    if (duplicate) {
+      portfolioName.value = active.name;
+      showPortfolioMessage(`"${name}" is already used by another portfolio.`, true);
+      return;
+    }
+    savePortfolioButton.disabled = true;
+    try {
+      await store.renamePortfolio(active.id, name);
+    } catch (error) {
+      portfolioName.value = active.name;
+      showPortfolioMessage(
+        error instanceof Error ? error.message : "Could not rename portfolio.",
+        true,
+      );
+    } finally {
+      savePortfolioButton.disabled = false;
+    }
+  }
+
+  function renderPortfolioMessage(state: store.StoreState): void {
+    const active = state.portfolios.find((entry) => entry.id === state.activePortfolioId);
+    const usesDefaultName = active ? isDefaultPortfolioName(active.name) : false;
+    portfolioName.classList.toggle("is-default", usesDefaultName);
+    portfolioWarning.classList.remove("is-error");
+    portfolioWarning.hidden = !active || !usesDefaultName;
+    portfolioWarning.textContent = usesDefaultName ? "This portfolio uses the default name." : "";
+  }
+
+  function showPortfolioMessage(message: string, isError = false): void {
+    portfolioWarning.classList.toggle("is-error", isError);
+    portfolioWarning.hidden = false;
+    portfolioWarning.textContent = message;
+  }
+
   function renderPortfolios(state: store.StoreState): void {
     const signature = `${state.portfolios
       .map((portfolio) => `${portfolio.id}:${portfolio.name}`)
@@ -212,23 +297,23 @@ export function mountApp(root: HTMLElement): void {
       ...state.portfolios.map((portfolio) => {
         const option = document.createElement("option");
         option.value = portfolio.id;
-        option.textContent = portfolio.name || "Unnamed portfolio";
+        option.textContent = portfolio.name || UNNAMED_PORTFOLIO_LABEL;
         return option;
       }),
     );
     if (state.activePortfolioId) portfolioSelect.value = state.activePortfolioId;
     portfolioSelect.disabled = state.portfolios.length === 0;
+
+    const active = state.portfolios.find((entry) => entry.id === state.activePortfolioId);
+    portfolioName.value = active?.name ?? "";
+    portfolioName.disabled = !active;
+    savePortfolioButton.disabled = !active;
+    renderPortfolioMessage(state);
   }
 
   async function startNewPortfolio(): Promise<void> {
-    const state = store.getState();
-    const current = state.portfolios.find((entry) => entry.id === state.activePortfolioId);
-    const answer = window.prompt("Name this portfolio", current?.name ?? "");
-    if (answer === null) return;
-    const name = answer.trim();
     newPortfolioButton.disabled = true;
     try {
-      if (name && current) await store.renamePortfolio(current.id, name);
       await store.createPortfolio("");
       resetForm();
     } catch (error) {

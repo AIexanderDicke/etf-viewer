@@ -114,14 +114,24 @@ h2 {
 
 .portfolio-controls {
   display: flex;
+  flex-direction: column;
   align-items: flex-end;
-  gap: 0.6rem;
-  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.portfolio-control-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.9rem;
+  width: 100%;
+  min-height: 1.5rem;
 }
 
 .portfolio-picker {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 0.3rem;
 }
 
@@ -133,10 +143,88 @@ h2 {
   color: var(--muted);
 }
 
-.portfolio-picker select {
+.portfolio-input-group {
+  display: flex;
+  align-items: stretch;
+}
+
+.portfolio-input-group > select,
+.portfolio-input-group > input,
+.portfolio-input-group > button {
+  height: 2.5rem;
+  border-radius: 0;
+  margin-left: -1px;
+}
+
+.portfolio-input-group > :first-child {
+  margin-left: 0;
+  border-top-left-radius: var(--radius-sm);
+  border-bottom-left-radius: var(--radius-sm);
+}
+
+.portfolio-input-group > :last-child {
+  border-top-right-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-sm);
+}
+
+.portfolio-input-group > select:focus,
+.portfolio-input-group > input:focus,
+.portfolio-input-group > button:focus {
+  position: relative;
+  z-index: 1;
+}
+
+.portfolio-input-group select {
+  appearance: none;
   width: auto;
-  min-width: 12rem;
+  min-width: 11rem;
   max-width: 18rem;
+  padding-right: 2.1rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2374748a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 0.8rem;
+}
+
+.portfolio-input-group input {
+  width: auto;
+  min-width: 11rem;
+  max-width: 16rem;
+}
+
+.portfolio-input-group input.is-default {
+  color: var(--faint);
+}
+
+.portfolio-warning {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--warn);
+}
+
+.portfolio-warning.is-error {
+  color: var(--danger);
+}
+
+.portfolio-new {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--accent-ink);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.portfolio-new:hover {
+  text-decoration: underline;
+}
+
+.portfolio-new:disabled {
+  color: var(--faint);
+  cursor: default;
+  text-decoration: none;
 }
 
 .card-head {
@@ -467,6 +555,20 @@ button.ghost:hover {
   border-color: var(--accent);
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+button.icon-button {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+}
+
+button.icon-button svg {
+  width: 1rem;
+  height: 1rem;
 }
 
 .form-error {
