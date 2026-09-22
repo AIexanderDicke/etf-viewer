@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { computeLookThrough, hasTopicData, normalizeName, stockKey } from "../../shared/exposure.ts";
+import {
+  computeLookThrough,
+  hasTopicData,
+  normalizeName,
+  stockKey,
+} from "../../shared/exposure.ts";
 import type { FundInfo, Position } from "../../shared/types.ts";
 
 function position(partial: Partial<Position> & Pick<Position, "kind" | "amount">): Position {
