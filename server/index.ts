@@ -4,12 +4,16 @@ import { createApp } from "./app.ts";
 import { config } from "./config.ts";
 import { createFundCacheRepo, createPortfolioRepo, createPositionRepo, getDb } from "./db.ts";
 import { createFundFactsProvider } from "./holdings/fundfacts.ts";
+import { createFundSnifferProvider } from "./holdings/fundsniffer.ts";
 import { FundService } from "./holdings/service.ts";
 import { createSnapshotProvider } from "./holdings/snapshot.ts";
 
 const db = getDb();
 
-const providers = [createFundFactsProvider()];
+const fundFacts = createFundFactsProvider();
+const fundSniffer = createFundSnifferProvider();
+const providers =
+  config.fundDataProvider === "fundsniffer" ? [fundSniffer, fundFacts] : [fundFacts, fundSniffer];
 if (config.enableSnapshotFallback) providers.push(createSnapshotProvider());
 
 const fundService = new FundService({
@@ -20,7 +24,12 @@ const fundService = new FundService({
   },
 });
 
-const fundDataMode = config.fundFactsApiKey ? "api-key" : "demo";
+const fundDataMode =
+  config.fundDataProvider === "fundsniffer"
+    ? "finanzen.net"
+    : config.fundFactsApiKey
+      ? "api-key"
+      : "demo";
 
 const staticDir = path.resolve("dist");
 const hasStaticFrontend = fs.existsSync(path.join(staticDir, "index.html"));
@@ -34,7 +43,12 @@ const app = createApp({
 });
 
 const server = app.listen(config.port, () => {
-  const mode = config.fundFactsApiKey ? "FundFacts API key" : "FundFacts keyless demo";
+  const mode =
+    config.fundDataProvider === "fundsniffer"
+      ? "FundSniffer (finanzen.net), FundFacts fallback"
+      : config.fundFactsApiKey
+        ? "FundFacts API key"
+        : "FundFacts keyless demo";
   console.log(`[server] listening on http://localhost:${config.port} (${mode})`);
   console.log(`[server] database: ${config.dbFile}`);
 });

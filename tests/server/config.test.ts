@@ -11,6 +11,8 @@ describe("loadConfig", () => {
     expect(config.dbFile).toBe(path.join(process.cwd(), "data", "etf-viewer.sqlite"));
     expect(config.fundFactsBaseUrl).toBe("https://fundfactsapi.com/api/v1");
     expect(config.fundFactsApiKey).toBe("");
+    expect(config.fundSnifferBaseUrl).toBe("http://localhost:8484");
+    expect(config.fundDataProvider).toBe("fundsniffer");
     expect(config.fundCacheTtlMs).toBe(DAY_MS);
     expect(config.upstreamTimeoutMs).toBe(30_000);
     expect(config.enableSnapshotFallback).toBe(false);
@@ -22,6 +24,8 @@ describe("loadConfig", () => {
       DB_FILE: "/tmp/custom.sqlite",
       FUNDFACTS_BASE_URL: "https://example.test/api",
       FUNDFACTS_API_KEY: "secret",
+      FUNDSNIFFER_BASE_URL: "http://localhost:9999",
+      FUND_DATA_PROVIDER: "fundfacts",
       FUND_CACHE_TTL_MS: "1000",
       UPSTREAM_TIMEOUT_MS: "500",
       ENABLE_SNAPSHOT_FALLBACK: "true",
@@ -30,6 +34,8 @@ describe("loadConfig", () => {
     expect(config.dbFile).toBe("/tmp/custom.sqlite");
     expect(config.fundFactsBaseUrl).toBe("https://example.test/api");
     expect(config.fundFactsApiKey).toBe("secret");
+    expect(config.fundSnifferBaseUrl).toBe("http://localhost:9999");
+    expect(config.fundDataProvider).toBe("fundfacts");
     expect(config.fundCacheTtlMs).toBe(1000);
     expect(config.upstreamTimeoutMs).toBe(500);
     expect(config.enableSnapshotFallback).toBe(true);
@@ -51,6 +57,8 @@ describe("loadConfig", () => {
     ["FUND_CACHE_TTL_MS", "-5"],
     ["UPSTREAM_TIMEOUT_MS", "nope"],
     ["FUNDFACTS_BASE_URL", "not-a-url"],
+    ["FUNDSNIFFER_BASE_URL", "not-a-url"],
+    ["FUND_DATA_PROVIDER", "bloomberg"],
     ["ENABLE_SNAPSHOT_FALLBACK", "maybe"],
   ])("rejects invalid %s=%s", (name, value) => {
     expect(() => loadConfig({ [name]: value })).toThrow(/Invalid/);

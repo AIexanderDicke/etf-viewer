@@ -14,6 +14,9 @@ stocks, sectors and countries.
 - Multiple named portfolios: name the current one and start a new one, then switch between them
   from the picker in the header. Adding the same ISIN twice joins it into one position.
 - Positions persisted server-side in SQLite; the browser only talks to same-origin `/api`.
+- Fund data from **FundSniffer** (finanzen.net, the local port-8484 backend) by default, with
+  **FundFacts** as a fallback — set `FUND_DATA_PROVIDER=fundfacts` (or `FUNDSNIFFER_BASE_URL`) to
+  switch; the other source stays in the chain as a fallback.
 
 ## Getting started
 
