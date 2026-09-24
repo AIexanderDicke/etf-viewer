@@ -21,7 +21,7 @@ browser never calls a third-party origin and the API key stays on the server.
 ## Architecture
 
 ```
-browser (Vite + TS)  ──/api──▶  backend (Express + SQLite)  ──▶  FundFacts API
+browser (Vite + TS)  ──/api──▶  backend (Express + SQLite)  ──▶  FundFacts API / FundSniffer
 ```
 
 - The frontend only ever calls same-origin `/api/*`. Vite proxies `/api` to the
@@ -45,7 +45,7 @@ server/            backend
   config.ts        env configuration (validated at startup)
   db.ts            SQLite schema + position/fund-cache repositories
   routes/          portfolios + positions + funds endpoints
-  holdings/        HoldingsProvider interface, FundFacts, snapshot, FundService
+  holdings/        HoldingsProvider interface, FundFacts + FundSniffer, snapshot, FundService
 src/               frontend
   main.ts          entry point, mounts the app
   api.ts           fetch client for /api
@@ -125,16 +125,18 @@ Backend reads env vars (see `server/config.ts`); no `.env` loader is wired up,
 export them in the shell. `.env.example` is a copy-paste template. Invalid values
 fail fast at startup.
 
-| Env var                    | Default                                     |
-| -------------------------- | ------------------------------------------- |
-| `PORT`                     | `3000`                                      |
-| `DB_FILE`                  | `data/etf-viewer.sqlite`                    |
-| `FUNDFACTS_API_KEY`        | _(empty → keyless demo endpoint)_           |
-| `FUNDFACTS_BASE_URL`       | `https://fundfactsapi.com/api/v1`           |
-| `FUND_CACHE_TTL_MS`        | `86400000` (24 h)                           |
-| `UPSTREAM_TIMEOUT_MS`      | `30000`                                     |
-| `ENABLE_SNAPSHOT_FALLBACK` | _(unset → off; testing/demo only)_          |
-| `API_URL`                  | `http://localhost:3000` (Vite proxy target) |
+| Env var                    | Default                                      |
+| -------------------------- | -------------------------------------------- |
+| `PORT`                     | `3000`                                       |
+| `DB_FILE`                  | `data/etf-viewer.sqlite`                     |
+| `FUNDFACTS_API_KEY`        | _(empty → keyless demo endpoint)_            |
+| `FUNDFACTS_BASE_URL`       | `https://fundfactsapi.com/api/v1`            |
+| `FUNDSNIFFER_BASE_URL`     | `http://localhost:8484`                      |
+| `FUND_DATA_PROVIDER`       | `fundsniffer` (`fundfacts` \| `fundsniffer`) |
+| `FUND_CACHE_TTL_MS`        | `86400000` (24 h)                            |
+| `UPSTREAM_TIMEOUT_MS`      | `30000`                                      |
+| `ENABLE_SNAPSHOT_FALLBACK` | _(unset → off; testing/demo only)_           |
+| `API_URL`                  | `http://localhost:3000` (Vite proxy target)  |
 
 The SQLite file lives in `data/` and is gitignored.
 
@@ -152,8 +154,9 @@ The SQLite file lives in `data/` and is gitignored.
 | DELETE | `/api/positions/:id`  | delete position              |
 | GET    | `/api/funds/:isin`    | fund metadata + top holdings |
 
-A `Position` carries `portfolioId`, `kind`, `isin` (ETFs), `name`, `bank` and
-`interestRate` (cash only) and `amount`. Validation lives in
+A `Position` carries `portfolioId`, `kind`, `isin` (ETFs), `name`, `bank`,
+`interestRate` (cash only), `source` (ETFs: the fund data source, shown as
+`FundFact` / `finanzen.net`) and `amount`. Validation lives in
 `server/routes/positions.ts`: `kind ∈ {etf, cash}`, `amount > 0`, a structurally
 valid ISIN for ETFs, and a non-negative `interestRate` when present.
 
@@ -170,13 +173,16 @@ valid ISIN for ETFs, and a non-negative `interestRate` when present.
 - **Duplicate ETF ISINs are joined** inside a portfolio: POSTing an ISIN that
   already exists sums the amount into the existing row (one row per ISIN per
   portfolio) instead of creating a second position. Cash positions stay separate.
-- **Data source is FundFacts** (ISIN-first, one schema for all fund houses).
-  Without a key the backend uses its keyless demo endpoint. Never hard-code an
-  issuer-specific source.
+- **Two interchangeable data sources**, selected with `FUND_DATA_PROVIDER` (**FundSniffer**
+  by default, or FundFacts). **FundSniffer** scrapes finanzen.net via the local port-8484
+  backend; **FundFacts** is ISIN-first, one schema for all fund houses (keyless demo without a
+  key). Both providers are always registered — the selected one goes first and the other stays
+  as a fallback, so FundFacts is never removed. Never hard-code an issuer-specific source.
 - **`HoldingsProvider`** is the seam (`server/holdings/types.ts`): providers
   return `null` for "unknown", throw on transient failure. `FundService` walks
-  providers in order (FundFacts → bundled snapshot) and prefers a **stale**
-  cache entry over a hard failure (flagged `stale`).
+  providers in order (from `FUND_DATA_PROVIDER` → the other source → bundled
+  snapshot) and prefers a **stale** cache entry over a hard failure (flagged
+  `stale`).
 - **Holdings coverage varies by fund**: the provider returns whatever the fund
   house publishes — ETFs usually file the full list, many active funds only
   their top ten. Coverage is always surfaced, and the exposure view reconciles
@@ -194,8 +200,8 @@ valid ISIN for ETFs, and a non-negative `interestRate` when present.
   created with `CREATE TABLE IF NOT EXISTS`, and any change to persisted data —
   a new table, column or index, a backfill, a rename — must add an idempotent
   migration to `migrate()` in `server/db.ts` that upgrades existing databases
-  (see `addColumn`; `bank`, `interest_rate` and `portfolio_id` were all added
-  this way). Never rely on `CREATE TABLE` alone, and never assume a fresh
+  (see `addColumn`; `bank`, `interest_rate`, `portfolio_id` and `source` were all
+  added this way). Never rely on `CREATE TABLE` alone, and never assume a fresh
   database. Add a test under `tests/server/db.test.ts` that seeds the old shape
   and asserts the migration leaves no data orphaned.
 - **Tests**: all `*.test.ts` live under `tests/` (never colocated, so they can

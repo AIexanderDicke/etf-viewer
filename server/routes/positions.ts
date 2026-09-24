@@ -9,6 +9,7 @@ interface ValidInput {
   name: string;
   bank: string;
   interestRate?: number;
+  source: string;
   amount: number;
 }
 
@@ -32,7 +33,8 @@ function parseInput(body: unknown): ParseResult {
   if (kind === "etf") {
     const isin = normalizeIsin(typeof input.isin === "string" ? input.isin : "");
     if (!isValidIsin(isin)) return { error: "invalid ISIN" };
-    return { value: { kind, isin, name, bank: "", amount } };
+    const source = typeof input.source === "string" ? input.source.trim() : "";
+    return { value: { kind, isin, name, bank: "", source, amount } };
   }
 
   const bank = typeof input.bank === "string" ? input.bank.trim() : "";
@@ -45,7 +47,7 @@ function parseInput(body: unknown): ParseResult {
     }
     interestRate = parsed;
   }
-  return { value: { kind, isin: "", name: "", bank, interestRate, amount } };
+  return { value: { kind, isin: "", name: "", bank, interestRate, source: "", amount } };
 }
 
 function readPortfolioId(body: unknown): string | undefined {
@@ -88,6 +90,7 @@ export function positionsRouter(repo: PositionRepo, portfolios: PortfolioRepo): 
           repo.update(existing.id, {
             amount: existing.amount + value.amount,
             name: existing.name || value.name,
+            source: existing.source || value.source,
           }),
         );
         return;
@@ -115,6 +118,7 @@ export function positionsRouter(repo: PositionRepo, portfolios: PortfolioRepo): 
       // An explicit key (even null/undefined) clears the rate; only an absent
       // key falls back to the stored value.
       interestRate: "interestRate" in body ? body.interestRate : existing.interestRate,
+      source: body.source ?? existing.source,
       amount: body.amount ?? existing.amount,
     };
 

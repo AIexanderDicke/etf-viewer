@@ -58,6 +58,7 @@ function position(overrides: Partial<Position>): Position {
     name: overrides.name ?? "",
     bank: overrides.bank ?? "",
     interestRate: overrides.interestRate,
+    source: overrides.source ?? "",
     amount: overrides.amount ?? 1000,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
@@ -404,6 +405,25 @@ describe("mountApp", () => {
     expect(document.querySelector(".details-row")).toBeNull();
   });
 
+  it("shows a fund's stored data source, labelling FundSniffer as finanzen.net", async () => {
+    apiMock.listPositions.mockResolvedValue([
+      position({ id: "etf-1", kind: "etf", isin: WORLD, amount: 6000, source: "FundSniffer" }),
+    ]);
+    await mount();
+
+    expect(document.querySelector(".asset-source")?.textContent).toBe("Source: finanzen.net");
+  });
+
+  it("labels FundFacts and falls back to the resolved fund's source", async () => {
+    apiMock.getFund.mockResolvedValue(fundInfo({ source: "FundFacts" }));
+    apiMock.listPositions.mockResolvedValue([
+      position({ id: "etf-1", kind: "etf", isin: WORLD, amount: 6000 }),
+    ]);
+    await mount();
+
+    expect(document.querySelector(".asset-source")?.textContent).toBe("Source: FundFact");
+  });
+
   it("edits a position and can clear its interest rate", async () => {
     apiMock.listPositions.mockResolvedValue([
       position({ id: "cash-1", kind: "cash", amount: 2000, bank: "ING", interestRate: 2.5 }),
@@ -428,6 +448,7 @@ describe("mountApp", () => {
       name: "",
       bank: "ING",
       interestRate: null,
+      source: "",
       amount: 2000,
     });
     expect(apiMock.addPosition).not.toHaveBeenCalled();
@@ -455,6 +476,7 @@ describe("mountApp", () => {
       name: "iShares Core MSCI World UCITS ETF",
       bank: "",
       interestRate: null,
+      source: "test",
       amount: 7000,
     });
   });
@@ -517,6 +539,7 @@ describe("mountApp", () => {
       name: "iShares Core MSCI World UCITS ETF",
       bank: "",
       interestRate: undefined,
+      source: "test",
       amount: 1000,
     };
     expect(apiMock.addPosition).toHaveBeenCalledWith(expected, "portfolio-1");
@@ -541,6 +564,7 @@ describe("mountApp", () => {
         name: "",
         bank: "Deutsche Bank",
         interestRate: 2.5,
+        source: "",
         amount: 5000,
       },
       "portfolio-1",

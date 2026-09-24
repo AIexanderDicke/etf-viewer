@@ -11,6 +11,7 @@ export interface ExportedPosition {
   name?: string;
   bank?: string;
   interestRate?: number;
+  source?: string;
 }
 
 export interface PortfolioExport {
@@ -45,6 +46,7 @@ export function buildPortfolioExport(
             amount: position.amount,
             isin: position.isin,
             name: position.name || undefined,
+            source: position.source || undefined,
           },
     ),
   };
@@ -108,7 +110,8 @@ function parsePosition(value: unknown, index: number): PositionInput {
     const isin = normalizeIsin(typeof value.isin === "string" ? value.isin : "");
     if (!isValidIsin(isin)) throw new Error(`${label} has an invalid ISIN.`);
     const name = typeof value.name === "string" ? value.name.trim() : "";
-    return { kind, isin, name, amount };
+    const source = typeof value.source === "string" ? value.source.trim() : "";
+    return { kind, isin, name, source, amount };
   }
 
   const bank = typeof value.bank === "string" ? value.bank.trim() : "";

@@ -22,6 +22,8 @@ export interface Position {
   bank: string;
   /** Cash only: annual interest rate in percent (e.g. 2.5 for 2.5% p.a.). */
   interestRate?: number;
+  /** ETFs only: data source the fund metadata was resolved from (e.g. "FundFacts"). */
+  source: string;
   /** Position value in EUR. */
   amount: number;
   createdAt: string;
@@ -34,6 +36,7 @@ export interface PositionInput {
   name?: string;
   bank?: string;
   interestRate?: number;
+  source?: string;
   amount: number;
 }
 

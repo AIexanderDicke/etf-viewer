@@ -19,6 +19,7 @@ function position(overrides: Partial<Position>): Position {
     name: overrides.name ?? "",
     bank: overrides.bank ?? "",
     interestRate: overrides.interestRate,
+    source: overrides.source ?? "",
     amount: overrides.amount ?? 100,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
@@ -30,7 +31,7 @@ describe("buildPortfolioExport", () => {
     const result = buildPortfolioExport(
       "Core",
       [
-        position({ kind: "etf", isin: WORLD, name: "World", amount: 1000 }),
+        position({ kind: "etf", isin: WORLD, name: "World", source: "FundSniffer", amount: 1000 }),
         position({ kind: "cash", bank: "ING", interestRate: 2.5, amount: 500 }),
         position({ kind: "cash", amount: 100 }),
       ],
@@ -43,7 +44,7 @@ describe("buildPortfolioExport", () => {
       portfolio: "Core",
       exportedAt: "2026-02-01T00:00:00.000Z",
       positions: [
-        { kind: "etf", amount: 1000, isin: WORLD, name: "World" },
+        { kind: "etf", amount: 1000, isin: WORLD, name: "World", source: "FundSniffer" },
         { kind: "cash", amount: 500, bank: "ING", interestRate: 2.5 },
         { kind: "cash", amount: 100 },
       ],
@@ -68,7 +69,13 @@ describe("parsePortfolioImport", () => {
         format: "etf-viewer.portfolio",
         portfolio: " Core ",
         positions: [
-          { kind: "etf", isin: WORLD.toLowerCase(), name: " World ", amount: 1000 },
+          {
+            kind: "etf",
+            isin: WORLD.toLowerCase(),
+            name: " World ",
+            source: " FundFacts ",
+            amount: 1000,
+          },
           { kind: "cash", bank: " ING ", interestRate: 2.5, amount: 500 },
           { kind: "cash", amount: 100 },
         ],
@@ -77,7 +84,7 @@ describe("parsePortfolioImport", () => {
 
     expect(result.portfolio).toBe("Core");
     expect(result.positions).toEqual([
-      { kind: "etf", isin: WORLD, name: "World", amount: 1000 },
+      { kind: "etf", isin: WORLD, name: "World", source: "FundFacts", amount: 1000 },
       { kind: "cash", isin: "", name: "", bank: "ING", interestRate: 2.5, amount: 500 },
       { kind: "cash", isin: "", name: "", bank: "", interestRate: undefined, amount: 100 },
     ]);

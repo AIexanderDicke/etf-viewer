@@ -31,6 +31,7 @@ function position(id: string, amount: number, portfolioId = "portfolio-1"): Posi
     isin: "",
     name: "",
     bank: "",
+    source: "",
     amount,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",

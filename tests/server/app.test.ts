@@ -120,6 +120,27 @@ describe("HTTP API", () => {
     expect(listed.body).toHaveLength(1);
   });
 
+  it("stores and updates the fund data source on an ETF", async () => {
+    const created = await json<Position>("/api/positions", {
+      method: "POST",
+      body: JSON.stringify({
+        kind: "etf",
+        isin: ETF_ISIN,
+        name: "World",
+        source: "FundSniffer",
+        amount: 1000,
+      }),
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.source).toBe("FundSniffer");
+
+    const patched = await json<Position>(`/api/positions/${created.body.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ source: "FundFacts" }),
+    });
+    expect(patched.body.source).toBe("FundFacts");
+  });
+
   it("lists, creates and renames portfolios", async () => {
     const initial = await json<Portfolio[]>("/api/portfolios");
     expect(initial.body).toHaveLength(1);

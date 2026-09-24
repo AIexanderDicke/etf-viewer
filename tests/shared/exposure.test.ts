@@ -15,6 +15,7 @@ function position(partial: Partial<Position> & Pick<Position, "kind" | "amount">
     isin: partial.isin ?? "",
     name: partial.name ?? "",
     bank: partial.bank ?? "",
+    source: partial.source ?? "",
     amount: partial.amount,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",

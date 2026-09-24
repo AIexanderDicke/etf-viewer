@@ -527,10 +527,12 @@ export function mountApp(root: HTMLElement): void {
     submitButton.disabled = true;
     try {
       let name = "";
+      let source = "";
       if (kind === "etf") {
         try {
           const info = await funds.loadFund(isin);
           name = info.name;
+          source = info.source;
         } catch {
           errorEl.textContent = `No fund data found for ${isin}. Check the ISIN.`;
           setIsinHint(`No fund data found for ${isin}. Check the ISIN.`, "error");
@@ -545,6 +547,7 @@ export function mountApp(root: HTMLElement): void {
         name,
         bank: kind === "cash" ? bankInput.value.trim() : "",
         interestRate,
+        source,
         amount,
       };
       if (editingId) {
@@ -689,6 +692,7 @@ export function mountApp(root: HTMLElement): void {
     const isCash = position.kind === "cash";
     const fundState = isCash ? null : funds.getFundState(position.isin);
     const info = fundState?.info;
+    const dataSource = isCash ? "" : position.source || info?.source || "";
 
     const row = document.createElement("tr");
     row.className = "position-row";
@@ -704,6 +708,9 @@ export function mountApp(root: HTMLElement): void {
       }
     } else {
       assetCell.append(el("div", "asset-sub", position.isin));
+      if (dataSource) {
+        assetCell.append(el("div", "asset-source", `Source: ${sourceLabel(dataSource)}`));
+      }
     }
     if (info) assetCell.append(renderChips(info));
     if (fundState?.status === "loading")
@@ -778,7 +785,7 @@ export function mountApp(root: HTMLElement): void {
     const heading = el("div", "details-heading");
     heading.append(el("span", "details-title", info.name));
     if (info.stale) heading.append(el("span", "badge badge-warn", "cached / stale"));
-    heading.append(el("span", "badge", info.source));
+    heading.append(el("span", "badge", sourceLabel(info.source)));
     box.append(heading);
 
     if (info.topHoldings.length === 0) {
@@ -839,6 +846,13 @@ function describePosition(position: Position | undefined): string {
     return position.bank ? `the cash position at ${position.bank}` : "this cash position";
   }
   return `the position in ${position.name || position.isin}`;
+}
+
+/** Maps a provider's internal source name to its user-facing data source label. */
+function sourceLabel(source: string): string {
+  if (source === "FundSniffer") return "finanzen.net";
+  if (source === "FundFacts") return "FundFact";
+  return source;
 }
 
 function legendMeta(

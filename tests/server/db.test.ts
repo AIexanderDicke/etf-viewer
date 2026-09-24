@@ -48,6 +48,23 @@ describe("position repo", () => {
     expect(updated?.interestRate).toBe(3.1);
   });
 
+  it("stores an ETF position's data source", () => {
+    const created = repo.create({
+      kind: "etf",
+      isin: "IE00B4L5Y983",
+      name: "World",
+      source: "FundSniffer",
+      amount: 1000,
+    });
+
+    expect(created.source).toBe("FundSniffer");
+    expect(repo.get(created.id)?.source).toBe("FundSniffer");
+
+    const updated = repo.update(created.id, { source: "FundFacts" });
+    expect(updated?.source).toBe("FundFacts");
+    expect(repo.get(created.id)?.source).toBe("FundFacts");
+  });
+
   it("leaves bank empty and interest rate undefined by default", () => {
     const created = repo.create({ kind: "cash", isin: "", name: "", amount: 100 });
     expect(created.bank).toBe("");
@@ -150,6 +167,8 @@ describe("migrations", () => {
       );
       INSERT INTO positions (id, kind, isin, name, amount, created_at, updated_at)
       VALUES ('p1', 'cash', '', '', 10, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
+      INSERT INTO positions (id, kind, isin, name, amount, created_at, updated_at)
+      VALUES ('p2', 'etf', 'IE00B4L5Y983', 'World', 20, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
     `);
     legacy.close();
 
@@ -161,12 +180,23 @@ describe("migrations", () => {
       expect(columns).toContain("bank");
       expect(columns).toContain("interest_rate");
       expect(columns).toContain("portfolio_id");
+      expect(columns).toContain("source");
 
       const defaultPortfolio = createPortfolioRepo(db).default();
       const stored = db.prepare("SELECT portfolio_id FROM positions WHERE id = 'p1'").get() as {
         portfolio_id: string;
       };
       expect(stored.portfolio_id).toBe(defaultPortfolio.id);
+
+      // Existing ETFs predate the data-source field and default to FundFacts.
+      const sources = db.prepare("SELECT id, source FROM positions ORDER BY id").all() as Array<{
+        id: string;
+        source: string;
+      }>;
+      expect(sources).toEqual([
+        { id: "p1", source: "" },
+        { id: "p2", source: "FundFacts" },
+      ]);
     } finally {
       db.close();
       for (const suffix of ["", "-wal", "-shm"]) {

@@ -49,6 +49,11 @@ function migrate(db: Db): void {
   addColumn(db, "positions", "bank", "TEXT NOT NULL DEFAULT ''");
   addColumn(db, "positions", "interest_rate", "REAL");
 
+  // Funds record where their metadata came from. Databases created before the
+  // field existed only ever used FundFacts, so existing ETF rows default to it.
+  addColumn(db, "positions", "source", "TEXT NOT NULL DEFAULT ''");
+  db.prepare("UPDATE positions SET source = 'FundFacts' WHERE kind = 'etf' AND source = ''").run();
+
   // Portfolios were added later; existing positions are attached to the
   // seeded default portfolio so no data is orphaned.
   addColumn(db, "positions", "portfolio_id", "TEXT NOT NULL DEFAULT ''");
@@ -213,6 +218,7 @@ interface PositionRow {
   name: string;
   bank: string;
   interest_rate: number | null;
+  source: string;
   amount: number;
   created_at: string;
   updated_at: string;
@@ -227,6 +233,7 @@ function toPosition(row: PositionRow): Position {
     name: row.name,
     bank: row.bank ?? "",
     interestRate: row.interest_rate ?? undefined,
+    source: row.source ?? "",
     amount: row.amount,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -289,13 +296,14 @@ export function createPositionRepo(db: Db): PositionRepo {
         name: input.name ?? "",
         bank: input.bank ?? "",
         interestRate: input.interestRate,
+        source: input.source ?? "",
         amount: input.amount,
         createdAt: now,
         updatedAt: now,
       };
       db.prepare(
-        `INSERT INTO positions (id, portfolio_id, kind, isin, name, bank, interest_rate, amount, created_at, updated_at)
-         VALUES (@id, @portfolioId, @kind, @isin, @name, @bank, @interestRate, @amount, @createdAt, @updatedAt)`,
+        `INSERT INTO positions (id, portfolio_id, kind, isin, name, bank, interest_rate, source, amount, created_at, updated_at)
+         VALUES (@id, @portfolioId, @kind, @isin, @name, @bank, @interestRate, @source, @amount, @createdAt, @updatedAt)`,
       ).run({ ...position, interestRate: position.interestRate ?? null });
       return position;
     },
@@ -312,7 +320,7 @@ export function createPositionRepo(db: Db): PositionRepo {
       db.prepare(
         `UPDATE positions
          SET kind = @kind, isin = @isin, name = @name, bank = @bank,
-             interest_rate = @interestRate, amount = @amount, updated_at = @updatedAt
+             interest_rate = @interestRate, source = @source, amount = @amount, updated_at = @updatedAt
          WHERE id = @id`,
       ).run({ ...next, interestRate: next.interestRate ?? null });
       return next;
