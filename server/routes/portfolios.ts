@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { HttpStatus } from "../../shared/constants.ts";
 import type { PortfolioRepo } from "../db.ts";
 
 function readName(body: unknown): string | undefined {
@@ -17,25 +18,25 @@ export function portfoliosRouter(repo: PortfolioRepo): Router {
   router.post("/", (req, res) => {
     const name = readName(req.body) ?? "";
     if (name.trim() && repo.findByName(name)) {
-      res.status(409).json({ error: "portfolio name already in use" });
+      res.status(HttpStatus.CONFLICT).json({ error: "portfolio name already in use" });
       return;
     }
-    res.status(201).json(repo.create(name));
+    res.status(HttpStatus.CREATED).json(repo.create(name));
   });
 
   router.patch("/:id", (req, res) => {
     const existing = repo.get(req.params.id);
     if (!existing) {
-      res.status(404).json({ error: "portfolio not found" });
+      res.status(HttpStatus.NOT_FOUND).json({ error: "portfolio not found" });
       return;
     }
     const name = readName(req.body);
     if (name === undefined) {
-      res.status(400).json({ error: "name must be a string" });
+      res.status(HttpStatus.BAD_REQUEST).json({ error: "name must be a string" });
       return;
     }
     if (name.trim() && repo.findByName(name, existing.id)) {
-      res.status(409).json({ error: "portfolio name already in use" });
+      res.status(HttpStatus.CONFLICT).json({ error: "portfolio name already in use" });
       return;
     }
     res.json(repo.update(existing.id, { name }));

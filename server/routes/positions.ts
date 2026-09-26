@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { HttpStatus } from "../../shared/constants.ts";
 import { isValidIsin, normalizeIsin } from "../../shared/isin.ts";
 import type { AssetKind, PositionInput } from "../../shared/types.ts";
 import type { PortfolioRepo, PositionRepo } from "../db.ts";
@@ -70,13 +71,13 @@ export function positionsRouter(repo: PositionRepo, portfolios: PortfolioRepo): 
   router.post("/", (req, res) => {
     const parsed = parseInput(req.body);
     if (parsed.error) {
-      res.status(400).json({ error: parsed.error });
+      res.status(HttpStatus.BAD_REQUEST).json({ error: parsed.error });
       return;
     }
 
     const portfolioId = readPortfolioId(req.body) ?? portfolios.default().id;
     if (!portfolios.get(portfolioId)) {
-      res.status(400).json({ error: "unknown portfolio" });
+      res.status(HttpStatus.BAD_REQUEST).json({ error: "unknown portfolio" });
       return;
     }
 
@@ -86,7 +87,7 @@ export function positionsRouter(repo: PositionRepo, portfolios: PortfolioRepo): 
     if (value.kind === "etf") {
       const existing = repo.findByIsin(portfolioId, value.isin);
       if (existing) {
-        res.status(200).json(
+        res.status(HttpStatus.OK).json(
           repo.update(existing.id, {
             amount: existing.amount + value.amount,
             name: existing.name || value.name,
@@ -97,13 +98,13 @@ export function positionsRouter(repo: PositionRepo, portfolios: PortfolioRepo): 
       }
     }
 
-    res.status(201).json(repo.create(value, portfolioId));
+    res.status(HttpStatus.CREATED).json(repo.create(value, portfolioId));
   });
 
   router.patch("/:id", (req, res) => {
     const existing = repo.get(req.params.id);
     if (!existing) {
-      res.status(404).json({ error: "position not found" });
+      res.status(HttpStatus.NOT_FOUND).json({ error: "position not found" });
       return;
     }
 
@@ -124,7 +125,7 @@ export function positionsRouter(repo: PositionRepo, portfolios: PortfolioRepo): 
 
     const parsed = parseInput(merged);
     if (parsed.error) {
-      res.status(400).json({ error: parsed.error });
+      res.status(HttpStatus.BAD_REQUEST).json({ error: parsed.error });
       return;
     }
     res.json(repo.update(existing.id, parsed.value!));
@@ -132,10 +133,10 @@ export function positionsRouter(repo: PositionRepo, portfolios: PortfolioRepo): 
 
   router.delete("/:id", (req, res) => {
     if (!repo.remove(req.params.id)) {
-      res.status(404).json({ error: "position not found" });
+      res.status(HttpStatus.NOT_FOUND).json({ error: "position not found" });
       return;
     }
-    res.status(204).end();
+    res.status(HttpStatus.NO_CONTENT).end();
   });
 
   return router;

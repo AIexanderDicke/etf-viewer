@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { HttpStatus } from "../../shared/constants.ts";
 import { isValidIsin, normalizeIsin } from "../../shared/isin.ts";
 import type { FundService } from "../holdings/service.ts";
 
@@ -8,13 +9,13 @@ export function fundsRouter(service: FundService): Router {
   router.get("/:isin", async (req, res) => {
     const isin = normalizeIsin(req.params.isin ?? "");
     if (!isValidIsin(isin)) {
-      res.status(400).json({ error: "invalid ISIN" });
+      res.status(HttpStatus.BAD_REQUEST).json({ error: "invalid ISIN" });
       return;
     }
 
     const info = await service.getFund(isin);
     if (!info) {
-      res.status(404).json({ error: `no fund data for ${isin}` });
+      res.status(HttpStatus.NOT_FOUND).json({ error: `no fund data for ${isin}` });
       return;
     }
     res.json(info);

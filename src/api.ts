@@ -1,3 +1,4 @@
+import { HttpStatus } from "../shared/constants.ts";
 import type { FundInfo, Portfolio, Position, PositionInput } from "../shared/types.ts";
 
 /** A PATCH body: `interestRate: null` explicitly clears the rate. */
@@ -22,7 +23,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     throw new Error(message);
   }
 
-  if (response.status === 204) return undefined as T;
+  if (response.status === HttpStatus.NO_CONTENT) return undefined as T;
   return (await response.json()) as T;
 }
 

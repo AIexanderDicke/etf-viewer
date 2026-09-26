@@ -1,5 +1,6 @@
 import path from "node:path";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
+import { HttpStatus } from "../shared/constants.ts";
 import type { PortfolioRepo, PositionRepo } from "./db.ts";
 import type { FundService } from "./holdings/service.ts";
 import { fundsRouter } from "./routes/funds.ts";
@@ -22,13 +23,16 @@ function statusOf(error: unknown): number {
     const value = status ?? statusCode;
     if (typeof value === "number" && value >= 400 && value < 600) return value;
   }
-  return 500;
+  return HttpStatus.INTERNAL_SERVER_ERROR;
 }
 
 function errorHandler(error: unknown, _req: Request, res: Response, _next: NextFunction): void {
   const status = statusOf(error);
   if (status >= 500) console.error("[server] unhandled error:", error);
-  res.status(status).json({ error: status === 500 ? "internal server error" : "invalid request" });
+  res.status(status).json({
+    error:
+      status === HttpStatus.INTERNAL_SERVER_ERROR ? "internal server error" : "invalid request",
+  });
 }
 
 /** Builds the Express app. Kept separate from `listen` so tests can mount it. */
@@ -54,7 +58,7 @@ export function createApp(deps: AppDeps): Express {
   }
 
   app.use((_req, res) => {
-    res.status(404).json({ error: "not found" });
+    res.status(HttpStatus.NOT_FOUND).json({ error: "not found" });
   });
 
   app.use(errorHandler);

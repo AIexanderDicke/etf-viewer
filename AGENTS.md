@@ -36,6 +36,7 @@ browser (Vite + TS)  ──/api──▶  backend (Express + SQLite)  ──▶ 
 ```
 shared/            used by both sides
   types.ts         domain types (positions, funds, breakdowns, look-through)
+  constants.ts     named HTTP status codes (HttpStatus)
   isin.ts          ISIN validation
   portfolio.ts     isUsable / summarize (allocation math)
   exposure.ts      pure look-through aggregation
