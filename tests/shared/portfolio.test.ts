@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { summarize } from "../../shared/portfolio.ts";
 import type { Position } from "../../shared/types.ts";
-import { isValidIsin, summarize } from "../../src/calc.ts";
 
 function position(partial: Partial<Position> & Pick<Position, "kind" | "amount">): Position {
   return {
@@ -16,18 +16,6 @@ function position(partial: Partial<Position> & Pick<Position, "kind" | "amount">
     updatedAt: "2026-01-01T00:00:00.000Z",
   };
 }
-
-describe("isValidIsin", () => {
-  it("accepts well-formed ISINs", () => {
-    expect(isValidIsin("IE00B4L5Y983")).toBe(true);
-    expect(isValidIsin("ie00b4l5y983")).toBe(true);
-  });
-
-  it("rejects malformed ISINs", () => {
-    expect(isValidIsin("BAD")).toBe(false);
-    expect(isValidIsin("IE00B4L5Y98")).toBe(false);
-  });
-});
 
 describe("summarize", () => {
   it("computes shares including cash", () => {

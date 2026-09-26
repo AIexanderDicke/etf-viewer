@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { euro, integer, percent } from "../../src/format.ts";
+import { euro, integer, percent } from "../../../src/ui/format.ts";
 
 describe("formatters", () => {
   it("formats euro amounts in de-DE", () => {

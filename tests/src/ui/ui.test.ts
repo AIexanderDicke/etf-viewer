@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { FundInfo, Portfolio, Position, PositionInput } from "../../shared/types.ts";
-import { euro } from "../../src/format.ts";
+import type { FundInfo, Portfolio, Position, PositionInput } from "../../../shared/types.ts";
+import { euro } from "../../../src/ui/format.ts";
 
 const apiMock = vi.hoisted(() => ({
   listPortfolios: vi.fn(),
@@ -14,11 +14,11 @@ const apiMock = vi.hoisted(() => ({
   getFund: vi.fn(),
 }));
 
-vi.mock("../../src/api.ts", () => ({ api: apiMock }));
+vi.mock("../../../src/api.ts", () => ({ api: apiMock }));
 
 const chartMock = vi.hoisted(() => ({ update: vi.fn(), resize: vi.fn(), destroy: vi.fn() }));
 
-vi.mock("../../src/chart.ts", () => ({
+vi.mock("../../../src/ui/chart.ts", () => ({
   createAllocationChart: () => chartMock,
   createDoughnut: () => chartMock,
   allocationColors: (allocations: unknown[]) => allocations.map(() => "#000000"),
@@ -26,7 +26,7 @@ vi.mock("../../src/chart.ts", () => ({
 
 const exportMock = vi.hoisted(() => ({ exportPortfolioPng: vi.fn() }));
 
-vi.mock("../../src/export.ts", () => exportMock);
+vi.mock("../../../src/ui/export.ts", () => exportMock);
 
 const transferMock = vi.hoisted(() => ({
   buildPortfolioExport: vi.fn(),
@@ -35,7 +35,7 @@ const transferMock = vi.hoisted(() => ({
   downloadJson: vi.fn(),
 }));
 
-vi.mock("../../src/transfer.ts", () => transferMock);
+vi.mock("../../../src/transfer.ts", () => transferMock);
 
 const WORLD = "IE00B4L5Y983";
 const EM = "IE00BKM4GZ66";
@@ -99,7 +99,7 @@ function flush(): Promise<void> {
 }
 
 async function mount(): Promise<void> {
-  const { mountApp } = await import("../../src/ui.ts");
+  const { mountApp } = await import("../../../src/ui/ui.ts");
   mountApp(byId("app"));
   await flush();
   await flush();

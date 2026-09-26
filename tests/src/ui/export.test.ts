@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { exportFilename } from "../../src/export.ts";
+import { exportFilename } from "../../../src/ui/export.ts";
 
 describe("exportFilename", () => {
   it("slugifies the portfolio name", () => {

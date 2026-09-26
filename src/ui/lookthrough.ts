@@ -1,4 +1,4 @@
-import { computeLookThrough, hasTopicData } from "../shared/exposure.ts";
+import { computeLookThrough, hasTopicData } from "../../shared/exposure.ts";
 import type {
   BreakdownKind,
   ExposureRow,
@@ -7,7 +7,7 @@ import type {
   Position,
   TopicExposure,
   TopicRow,
-} from "../shared/types.ts";
+} from "../../shared/types.ts";
 import { createDoughnut } from "./chart.ts";
 import { euro, percent } from "./format.ts";
 

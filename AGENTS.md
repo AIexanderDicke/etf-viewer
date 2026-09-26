@@ -47,23 +47,25 @@ server/            backend
   routes/          portfolios + positions + funds endpoints
   holdings/        HoldingsProvider interface, FundFacts + FundSniffer, snapshot, FundService
 src/               frontend
-  main.ts          entry point, mounts the app
   api.ts           fetch client for /api
   store.ts         positions state (server-backed)
   funds.ts         lazy fund-data lookup per ISIN
-  ui.ts            tab shell, add-position form, position table, fund rows
-  lookthrough.ts   exposure view (stocks + topic charts)
-  calc.ts          re-exports shared portfolio/ISIN helpers
-  chart.ts         Chart.js doughnut factories
-  format.ts        euro / percent / integer formatters
-  export.ts        allocation PNG export (chart + allocation table)
   transfer.ts      portfolio JSON export / import (import creates a new portfolio)
-  style.css        theme
+  vite-env.d.ts    Vite client types
+  ui/              everything that renders the interface
+    main.ts        entry point, mounts the app
+    ui.ts          tab shell, add-position form, position table, fund rows
+    lookthrough.ts exposure view (stocks + topic charts)
+    chart.ts       Chart.js doughnut factories
+    format.ts      euro / percent / integer formatters
+    export.ts      allocation PNG export (chart + allocation table)
+    style.css      theme
 index.html         Vite entry document
 tests/             all `*.test.ts`, mirroring the source layout
   shared/            tests for shared/
   server/            tests for server/
   src/               tests for src/
+    ui/              tests for src/ui/
 Dockerfile         slim multi-stage production image
 .dockerignore      keeps tests, data and build output out of the image context
 ```
@@ -217,7 +219,7 @@ valid ISIN for ETFs, and a non-negative `interestRate` when present.
 - ESM only (`"type": "module"`); relative imports use explicit `.ts` extensions.
 - No UI framework — vanilla DOM built with small `el`/`get` helpers (each view
   defines its own copies).
-- Format money and shares with `src/format.ts` (`euro`, `percent`, `integer`);
+- Format money and shares with `src/ui/format.ts` (`euro`, `percent`, `integer`);
   don't hand-roll `Intl` calls.
 - No comments unless they explain a non-obvious decision.
 

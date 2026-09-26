@@ -1,3 +1,5 @@
+import { isValidIsin } from "../../shared/isin.ts";
+import { summarize } from "../../shared/portfolio.ts";
 import type {
   Allocation,
   AssetKind,
@@ -5,21 +7,20 @@ import type {
   PortfolioSummary,
   Position,
   PositionInput,
-} from "../shared/types.ts";
-import type { PositionPatch } from "./api.ts";
-import { isValidIsin, summarize } from "./calc.ts";
+} from "../../shared/types.ts";
+import type { PositionPatch } from "../api.ts";
 import { allocationColors, createAllocationChart } from "./chart.ts";
 import { exportPortfolioPng, type ExportRow } from "./export.ts";
 import { euro, integer, percent } from "./format.ts";
-import * as funds from "./funds.ts";
+import * as funds from "../funds.ts";
 import { createLookThroughView } from "./lookthrough.ts";
-import * as store from "./store.ts";
+import * as store from "../store.ts";
 import {
   buildPortfolioExport,
   downloadJson,
   parsePortfolioImport,
   portfolioExportFilename,
-} from "./transfer.ts";
+} from "../transfer.ts";
 
 type TabId = "portfolio" | "lookthrough" | "config";
 
